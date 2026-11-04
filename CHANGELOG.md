@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-04
+
+### Added
+- App icon: a clay writing tablet (the *pinax* of the Library of Alexandria's catalog) with a sparkle, drawn from vectors by `scripts/make-icon.swift` (`scripts/make-icon.sh` rebuilds `assets/AppIcon.icns`).
+- Icon shown at the top of the README.
+
 ## [0.1.0] - 2026-11-04
 
 First public release (milestone M1). Apple Silicon, macOS 26+, ad-hoc signed.
@@ -30,5 +36,6 @@ First public release (milestone M1). Apple Silicon, macOS 26+, ad-hoc signed.
 - `build.sh` producing an arm64 `Pinax.app`, plus `./build.sh dmg` for `Pinax-<version>-arm64.dmg`, `.zip` and `SHA256SUMS.txt`.
 - Documentation: README, user guide, architecture, contributing guide, AGENTS.md.
 
-[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/duchuynguyen93/pinax/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/duchuynguyen93/pinax/releases/tag/v0.1.0

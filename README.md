@@ -1,8 +1,10 @@
+<p align="center"><img src="assets/AppIcon-1024.png" width="128" alt="Pinax icon"></p>
+
 # Pinax
 
 Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk clutter and tidies your Downloads folder. It never deletes anything: every removal is a move to the Trash, and every batch can be undone from the built-in history. Later milestones will grow it into a Finder companion with its own file browser.
 
-> Version 0.1.0 (M1). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
+> Version 0.1.1 (M1). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
 
 ## Features
 
