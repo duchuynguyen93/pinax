@@ -57,8 +57,8 @@ The version lives in the [`VERSION`](VERSION) file.
 |---|---|---|
 | M1 | Smart Clean, Tidy Downloads, History and Undo, Settings | Done (0.1.0) |
 | M1.5 | Leftovers of deleted apps, Empty Trash, Quick Look in lists | Planned |
-| M2 | File browser, git-aware path bar, open in Terminal/Editor, set as default folder viewer | Planned |
-| M3 | Workspaces and dual pane | Planned |
+| M2 | File browser, git-aware path bar, open in Terminal/Editor, global hotkey / Services / Open With entry points | In progress |
+| M3 | Workspaces, dual pane, copy queue, Finder cut/paste interop | Planned |
 
 ## Documentation
 

@@ -50,6 +50,6 @@ Full contract: `docs/ARCHITECTURE.md#safety-contract`. Never break:
 ## Do not
 
 - Add Empty Trash or any irreversible action without an explicit design in `docs/plans/`.
-- Add Finder-replacement hooks (default folder viewer, `NSFileViewer`) before M2.
+- Try to register Pinax as the default folder viewer (`public.folder` default handler, `NSFileViewer`): macOS 27 refuses it, see `docs/plans/M2-file-browser.md` §0.
 - Commit `dist/`, `.build/` or `Pinax.app`.
 - Change safety behavior without updating tests and the contract.
