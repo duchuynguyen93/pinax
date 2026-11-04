@@ -28,8 +28,11 @@ struct PathField: NSViewRepresentable {
                 editor.selectedRange = NSRange(location: 0, length: (initialText as NSString).length) // chọn hết → gõ là thay
             }
         }
+        context.coordinator.installTabMonitor(for: field)
         return field
     }
+
+    static func dismantleNSView(_ field: NSTextField, coordinator: Coordinator) { coordinator.removeTabMonitor() }
 
     func updateNSView(_ field: NSTextField, context: Context) { context.coordinator.parent = self }
 
@@ -41,6 +44,26 @@ struct PathField: NSViewRepresentable {
         private let home = FileManager.default.homeDirectoryForCurrentUser
 
         init(_ parent: PathField) { self.parent = parent }
+
+        /// SwiftUI dùng Tab để chuyển focus nên `insertTab:` không tới được field editor.
+        /// Bắt Tab / ⇧Tab ở tầng sự kiện khi ô này đang được gõ.
+        private var tabMonitor: Any?
+
+        func installTabMonitor(for field: NSTextField) {
+            removeTabMonitor()
+            tabMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak field] event in
+                guard let self, let field, event.keyCode == 48, // Tab
+                      let tv = field.currentEditor() as? NSTextView, field.window?.firstResponder === tv,
+                      event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+                self.tab(tv, backwards: event.modifierFlags.contains(.shift))
+                return nil
+            }
+        }
+
+        func removeTabMonitor() {
+            if let m = tabMonitor { NSEvent.removeMonitor(m) }
+            tabMonitor = nil
+        }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             switch selector {
@@ -77,6 +100,7 @@ struct PathField: NSViewRepresentable {
         func controlTextDidEndEditing(_ obj: Notification) { finish() } // mất focus = huỷ
 
         private func finish() {
+            removeTabMonitor()
             guard !finished else { return }
             finished = true
             parent.onCancel()
