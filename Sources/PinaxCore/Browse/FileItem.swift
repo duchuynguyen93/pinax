@@ -86,6 +86,30 @@ public struct FileItem: Identifiable, Hashable, Sendable {
         }
     }
 
+    /// Loại nội dung suy ra từ đuôi file. Package ưu tiên UTType của đuôi (`.app` → application-bundle → "Application")
+    /// trước khi rơi về `.package` chung.
+    static func contentType(isDirectory: Bool, isPackage: Bool, ext: String) -> UTType {
+        if isDirectory {
+            if isPackage {
+                if !ext.isEmpty, let t = UTType(filenameExtension: ext), !t.isDynamic, t != .data { return t }
+                return .package
+            }
+            return .folder
+        }
+        return ext.isEmpty ? .data : (UTType(filenameExtension: ext) ?? .data)
+    }
+
+    /// Viết hoa chữ cái đầu của mô tả hệ thống ("folder" → "Folder"), giữ nguyên phần còn lại.
+    public static func capitalizingFirst(_ s: String, locale: Locale = .current) -> String {
+        guard let first = s.first else { return s }
+        return String(first).capitalized(with: locale) + s.dropFirst()
+    }
+
+    /// Mô tả loại hiển thị cho cột Kind.
+    public static func kindText(isDirectory: Bool, isPackage: Bool, ext: String) -> String {
+        capitalizingFirst(descriptions.description(for: contentType(isDirectory: isDirectory, isPackage: isPackage, ext: ext)))
+    }
+
     /// Dựng từ URL vừa lấy từ `contentsOfDirectory` (cache cheapKeys đã có, không xoá cache).
     /// Loại/package suy ra từ đuôi file; tag và iCloud không đọc (trừ khi `readUbiquitous`).
     static func listed(_ url: URL, readUbiquitous: Bool = false) -> FileItem? {
@@ -97,13 +121,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
         if isDir, !ext.isEmpty {
             isPackage = (try? url.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
         }
-        let type: UTType
-        if isDir {
-            if isPackage, let t = UTType(filenameExtension: ext), t.conforms(to: .package) { type = t }
-            else { type = isPackage ? .package : .folder }
-        } else {
-            type = ext.isEmpty ? .data : (UTType(filenameExtension: ext) ?? .data)
-        }
+        let type = contentType(isDirectory: isDir, isPackage: isPackage, ext: ext)
         var ubiquitous: UbiquitousStatus?
         if readUbiquitous, let u = try? url.resourceValues(forKeys: Set(ubiquitousKeys)) {
             ubiquitous = ubiquitousStatus(u)
@@ -114,7 +132,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
             isSymlink: v.isSymbolicLink ?? false, isAlias: v.isAliasFile ?? false,
             size: isDir ? nil : v.fileSize.map(Int64.init),
             modified: v.contentModificationDate, created: nil,
-            kindDescription: descriptions.description(for: type), contentType: type,
+            kindDescription: Self.capitalizingFirst(descriptions.description(for: type)), contentType: type,
             tagNames: [], ubiquitousStatus: ubiquitous)
     }
 
@@ -143,7 +161,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
             isSymlink: v.isSymbolicLink ?? false, isAlias: v.isAliasFile ?? false,
             size: isDir ? nil : v.fileSize.map(Int64.init),
             modified: v.contentModificationDate, created: v.creationDate,
-            kindDescription: v.localizedTypeDescription ?? "", contentType: v.contentType,
+            kindDescription: Self.capitalizingFirst(v.localizedTypeDescription ?? ""), contentType: v.contentType,
             tagNames: v.tagNames ?? [], ubiquitousStatus: ubiquitousStatus(v))
     }
 }

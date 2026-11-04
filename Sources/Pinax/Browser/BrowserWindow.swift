@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import QuickLook
 import PinaxCore
 
 /// Hạt giống của một cửa sổ trình duyệt (khoá của `WindowGroup(for:)`). `id` để mỗi lần mở là một cửa sổ riêng.
@@ -54,7 +55,7 @@ struct BrowserRoot: View {
 }
 
 struct BrowserWindowView: View {
-    let model: BrowserModel
+    @Bindable var model: BrowserModel
 
     var body: some View {
         NavigationSplitView {
@@ -87,27 +88,64 @@ struct BrowserWindowView: View {
                         .disabled(!model.canGoUp)
                         .help(L("Enclosing Folder", "Thư mục cha"))
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Picker(L("View", "Kiểu xem"), selection: $model.viewMode) {
+                        Image(systemName: "list.bullet").tag(BrowserViewMode.list)
+                            .help(L("As List (⌘1)", "Dạng danh sách (⌘1)"))
+                        Image(systemName: "square.grid.2x2").tag(BrowserViewMode.icons)
+                            .help(L("As Icons (⌘2)", "Dạng biểu tượng (⌘2)"))
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(model.pinax != nil)
+                }
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { model.zoomOut() } label: { Image(systemName: "minus.magnifyingglass") }
+                        .keyboardShortcut("-", modifiers: .command)
+                        .disabled(model.viewMode != .icons || model.iconSize.smaller == nil || model.pinax != nil)
+                        .help(L("Smaller Icons (⌘−)", "Biểu tượng nhỏ hơn (⌘−)"))
+                    Button { model.zoomIn() } label: { Image(systemName: "plus.magnifyingglass") }
+                        .keyboardShortcut("=", modifiers: .command)
+                        .disabled(model.viewMode != .icons || model.iconSize.larger == nil || model.pinax != nil)
+                        .help(L("Larger Icons (⌘+)", "Biểu tượng lớn hơn (⌘+)"))
+                }
             }
+        }
+        .background {
+            // Phím tắt đổi kiểu xem (segmented control không gắn được phím cho từng đoạn).
+            Group {
+                Button("") { model.viewMode = .list }.keyboardShortcut("1", modifiers: .command)
+                Button("") { model.viewMode = .icons }.keyboardShortcut("2", modifiers: .command)
+            }
+            .opacity(0).allowsHitTesting(false).accessibilityHidden(true)
         }
         .frame(minWidth: 900, minHeight: 560)
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 40) }
     }
 }
 
-/// Path bar + danh sách + status bar.
+/// Path bar + danh sách / lưới icon + status bar.
 struct BrowserContent: View {
-    let model: BrowserModel
+    @Bindable var model: BrowserModel
 
     var body: some View {
         VStack(spacing: 0) {
             PathBar(model: model)
             Divider()
-            FileListView(model: model, generation: model.generation, resetToken: model.resetToken,
-                         revealToken: model.revealToken, sort: model.prefs.sort, pathEditing: model.pathEditing)
-                .overlay { stateOverlay }
+            Group {
+                switch model.viewMode {
+                case .list:
+                    FileListView(model: model, generation: model.generation, resetToken: model.resetToken,
+                                 revealToken: model.revealToken, sort: model.prefs.sort, pathEditing: model.pathEditing)
+                case .icons:
+                    IconGridView(model: model, generation: model.generation, resetToken: model.resetToken,
+                                 revealToken: model.revealToken, iconSize: model.iconSize, pathEditing: model.pathEditing)
+                }
+            }
+            .overlay { stateOverlay }
             Divider()
             StatusBar(model: model)
         }
+        .quickLookPreview($model.quickLookURL, in: model.quickLookURLs)
     }
 
     @ViewBuilder private var stateOverlay: some View {

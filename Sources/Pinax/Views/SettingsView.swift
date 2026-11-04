@@ -5,6 +5,9 @@ import PinaxCore
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @State private var fdaGranted = FullDiskAccess.isGranted
+    @State private var hotKey = HotKeyModel.shared
+    @AppStorage(ExternalApps.terminalKey) private var terminalID = ""
+    @AppStorage(ExternalApps.editorKey) private var editorID = ""
 
     var body: some View {
         @Bindable var settings = settings
@@ -52,6 +55,32 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section(L("Global shortcut", "Phím tắt toàn cục")) {
+                Toggle(L("Show Pinax with a shortcut", "Gọi Pinax bằng phím tắt"), isOn: $hotKey.enabled)
+                LabeledContent(L("Shortcut", "Phím tắt")) {
+                    HStack {
+                        Text(hotKey.recording ? L("Press keys…", "Nhấn tổ hợp phím…") : hotKey.display)
+                            .monospaced()
+                        Button(hotKey.recording ? L("Cancel", "Huỷ") : L("Record Shortcut", "Ghi phím tắt")) {
+                            hotKey.recording ? hotKey.endRecording() : hotKey.beginRecording()
+                        }
+                        Button(L("Reset", "Mặc định")) { hotKey.reset() }
+                            .disabled(hotKey.recording)
+                    }
+                }
+                .disabled(!hotKey.enabled)
+                if hotKey.enabled && hotKey.status != 0 {
+                    Text(L("This shortcut is taken by another app or the system. Pick a different one.",
+                           "Phím tắt này đã bị app khác hoặc hệ thống dùng. Hãy chọn tổ hợp khác."))
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                Text(L("Needs ⌘, ⌃ or ⌥. Esc cancels recording.", "Cần ⌘, ⌃ hoặc ⌥. Esc để huỷ ghi."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section(L("Open in Terminal / Editor", "Mở trong Terminal / Editor")) {
+                appPicker(L("Terminal", "Terminal"), apps: ExternalApps.terminals, selection: $terminalID)
+                appPicker(L("Editor", "Editor"), apps: ExternalApps.editors, selection: $editorID)
+            }
             Section(L("Permissions", "Quyền truy cập")) {
                 LabeledContent("Full Disk Access") {
                     HStack {
@@ -79,6 +108,18 @@ struct SettingsView: View {
         .onAppear { fdaGranted = FullDiskAccess.isGranted }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             fdaGranted = FullDiskAccess.isGranted
+        }
+    }
+
+    @ViewBuilder
+    private func appPicker(_ title: String, apps: [CatalogApp], selection: Binding<String>) -> some View {
+        if apps.isEmpty {
+            LabeledContent(title, value: L("None installed", "Chưa cài app nào"))
+        } else {
+            let current = apps.contains { $0.bundleID == selection.wrappedValue } ? selection.wrappedValue : apps[0].bundleID
+            Picker(title, selection: Binding(get: { current }, set: { selection.wrappedValue = $0 })) {
+                ForEach(apps) { Text($0.name).tag($0.bundleID) }
+            }
         }
     }
 

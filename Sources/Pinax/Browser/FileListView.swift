@@ -2,12 +2,48 @@ import SwiftUI
 import AppKit
 import PinaxCore
 
+/// Phím tắt dùng chung cho list và icon view: Space = Quick Look, ⌘↓ = mở.
+@MainActor
+enum BrowserKeys {
+    static func handle(_ event: NSEvent, model: BrowserModel) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if flags.isEmpty, event.charactersIgnoringModifiers == " " {
+            model.toggleQuickLook()
+            return true
+        }
+        if flags == .command, event.keyCode == 125 {
+            model.openSelection()
+            return true
+        }
+        return false
+    }
+}
+
 /// NSTableView có chỗ gắn context menu (bước sau).
 final class BrowserTableView: NSTableView {
     /// Extension point: bước D gắn menu chuột phải ở đây.
     var menuProvider: ((NSEvent) -> NSMenu?)?
+    /// Phím riêng của trình duyệt (Space, ⌘↓); trả true nếu đã xử lý.
+    var keyHandler: ((NSEvent) -> Bool)?
+
+    override func keyDown(with event: NSEvent) {
+        if keyHandler?(event) == true { return }
+        super.keyDown(with: event)
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? { menuProvider?(event) ?? super.menu(for: event) }
+}
+
+/// Ô của bảng; khi tái dùng thì huỷ request thumbnail đang chạy của nó.
+final class ListCell: NSTableCellView {
+    weak var requester: ThumbnailRequester?
+    var representedPath: String?
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        MainActor.assumeIsolated { requester?.cancel(self) }
+        representedPath = nil
+    }
 }
 
 /// Danh sách file bằng NSTableView (không dùng SwiftUI List).
@@ -60,7 +96,17 @@ struct FileListView: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         c.table = table
+        table.keyHandler = { [weak c] event in
+            guard let c else { return false }
+            return BrowserKeys.handle(event, model: c.model)
+        }
+        c.model.folderSizes.observe(c) { [weak c] path in c?.sizeResolved(path) }
         return scroll
+    }
+
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        coordinator.model.folderSizes.stopObserving(coordinator)
+        coordinator.thumbs.cancelAll()
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -80,8 +126,18 @@ struct FileListView: NSViewRepresentable {
         private var wasEditingPath = false
         private var didInitialFocus = false
         private var isUpdating = false
+        let thumbs = ThumbnailRequester()
+        private static let iconPoints: CGFloat = 18
 
         init(model: BrowserModel) { self.model = model }
+
+        /// Một thư mục vừa tính xong → vẽ lại ô Size của đúng dòng đó.
+        func sizeResolved(_ path: String) {
+            guard let table, let row = rowByPath[path] else { return }
+            let col = table.column(withIdentifier: NSUserInterfaceItemIdentifier("size"))
+            guard col >= 0 else { return }
+            table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
+        }
 
         func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool) {
             guard let table else { return }
@@ -95,6 +151,7 @@ struct FileListView: NSViewRepresentable {
 
             if generation != lastGeneration {
                 lastGeneration = generation
+                if resetToken != lastReset { thumbs.cancelAll() }
                 items = model.items
                 rowByPath = Dictionary(items.enumerated().map { ($1.url.path, $0) }, uniquingKeysWith: { a, _ in a })
                 table.reloadData()
@@ -135,15 +192,34 @@ struct FileListView: NSViewRepresentable {
             guard let tableColumn, row < items.count else { return nil }
             let item = items[row]
             let id = tableColumn.identifier
-            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView)
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? ListCell)
                 ?? Self.makeCell(id, hasIcon: id.rawValue == "name")
+            cell.requester = thumbs
             let text: String
             switch id.rawValue {
             case "name":
                 text = item.name
-                cell.imageView?.image = IconCache.shared.icon(for: item)
+                cell.representedPath = item.url.path
+                let scale = tableView.window?.backingScaleFactor ?? 2
+                if let img = thumbs.cached(item, points: Self.iconPoints, scale: scale) {
+                    thumbs.cancel(cell)
+                    cell.imageView?.image = img
+                } else {
+                    cell.imageView?.image = IconCache.shared.icon(for: item, size: Self.iconPoints)
+                    let path = item.url.path
+                    thumbs.load(for: cell, item: item, points: Self.iconPoints, scale: scale) { [weak cell, weak self] img in
+                        // Cell có thể đã được tái dùng cho dòng khác.
+                        guard let cell, let self, self.rowByPath[path] != nil, cell.representedPath == path else { return }
+                        cell.imageView?.image = img
+                    }
+                }
             case "modified": text = item.modified.map { Self.dateFormatter().string(from: $0) } ?? "--"
-            case "size": text = item.size.map { fmtBytes($0) } ?? "--"
+            case "size":
+                if item.isDirectory, !item.isSymlink, !item.isAlias {
+                    text = model.folderSizes.info(for: item)?.size.map { fmtBytes($0) } ?? "…"
+                } else {
+                    text = item.size.map { fmtBytes($0) } ?? "--"
+                }
             default: text = item.kindDescription
             }
             cell.textField?.stringValue = text
@@ -151,8 +227,8 @@ struct FileListView: NSViewRepresentable {
             return cell
         }
 
-        private static func makeCell(_ id: NSUserInterfaceItemIdentifier, hasIcon: Bool) -> NSTableCellView {
-            let cell = NSTableCellView()
+        private static func makeCell(_ id: NSUserInterfaceItemIdentifier, hasIcon: Bool) -> ListCell {
+            let cell = ListCell()
             cell.identifier = id
             let label = NSTextField(labelWithString: "")
             label.translatesAutoresizingMaskIntoConstraints = false
@@ -168,8 +244,8 @@ struct FileListView: NSViewRepresentable {
                 NSLayoutConstraint.activate([
                     icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
                     icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                    icon.widthAnchor.constraint(equalToConstant: 16),
-                    icon.heightAnchor.constraint(equalToConstant: 16),
+                    icon.widthAnchor.constraint(equalToConstant: iconPoints),
+                    icon.heightAnchor.constraint(equalToConstant: iconPoints),
                     label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
                 ])
             } else {

@@ -40,26 +40,67 @@ struct PathBar: View {
         return p.hasSuffix("/") ? p : p + "/"
     }
 
+    /// Breadcrumb căn trái. Quá dài → thu gọn các thành phần ở giữa vào menu "…" (giữ gốc và các mục cuối).
     private var crumbs: some View {
         let list = Self.components(of: model.folder)
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(Array(list.enumerated()), id: \.offset) { i, url in
-                    if i > 0 { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary) }
-                    Button { model.navigate(to: url) } label: {
-                        HStack(spacing: 4) {
-                            Image(nsImage: IconCache.shared.icon(forPath: url.path, size: 14))
-                            Text(FileManager.default.displayName(atPath: url.path)).lineLimit(1)
+        let maxHidden = max(0, list.count - 2)
+        return FirstFit {
+            ForEach(0...maxHidden, id: \.self) { hidden in
+                crumbRow(list, hidden: hidden)
+            }
+            // Vẫn không vừa → chỉ còn thư mục hiện tại, cắt đuôi.
+            crumbRow(list, hidden: maxHidden, lastOnly: true)
+        }
+        .clipped()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .id(model.folder.path)
+    }
+
+    /// `hidden` = số thành phần giữa bị gộp (bỏ ngay sau gốc).
+    private func crumbRow(_ list: [URL], hidden: Int, lastOnly: Bool = false) -> some View {
+        let shown: [Int]
+        let collapsed: [URL]
+        if lastOnly {
+            shown = [list.count - 1]
+            collapsed = []
+        } else {
+            let first = list.isEmpty ? [] : [0]
+            let tail = Array((1 + hidden)..<max(list.count, 1 + hidden))
+            shown = first + tail
+            collapsed = hidden > 0 ? Array(list[1..<(1 + hidden)]) : []
+        }
+        return HStack(spacing: 2) {
+            ForEach(Array(shown.enumerated()), id: \.offset) { pos, i in
+                if pos > 0 { chevron }
+                if pos == 1, !collapsed.isEmpty, !lastOnly {
+                    Menu {
+                        ForEach(Array(collapsed.enumerated()), id: \.offset) { _, url in
+                            Button(FileManager.default.displayName(atPath: url.path)) { model.navigate(to: url) }
                         }
-                        .padding(.horizontal, 4).padding(.vertical, 2)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    } label: { Text("…") }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    chevron
                 }
+                crumb(list[i], truncates: lastOnly)
             }
         }
-        .defaultScrollAnchor(.trailing)
-        .id(model.folder.path)
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+    }
+
+    private func crumb(_ url: URL, truncates: Bool) -> some View {
+        Button { model.navigate(to: url) } label: {
+            HStack(spacing: 4) {
+                Image(nsImage: IconCache.shared.icon(forPath: url.path, size: 14))
+                Text(FileManager.default.displayName(atPath: url.path)).lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.horizontal, 4).padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private static func components(of url: URL) -> [URL] {
@@ -92,6 +133,35 @@ struct PathBar: View {
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
             .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
             .padding(.leading, 28)
+        }
+    }
+}
+
+/// Hiện con đầu tiên có chiều rộng lý tưởng vừa với chỗ được cấp (không có thì con cuối); các con khác ẩn.
+private struct FirstFit: Layout {
+    private func pick(_ subviews: Subviews, width: CGFloat?) -> Int {
+        guard let width, width.isFinite else { return 0 }
+        for (i, v) in subviews.enumerated() where v.sizeThatFits(.unspecified).width <= width { return i }
+        return subviews.count - 1
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let i = pick(subviews, width: proposal.width)
+        let s = subviews[i].sizeThatFits(i == subviews.count - 1 ? proposal : .unspecified)
+        return CGSize(width: min(s.width, proposal.width ?? s.width), height: s.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let chosen = pick(subviews, width: bounds.width)
+        for (i, v) in subviews.enumerated() {
+            if i == chosen {
+                v.place(at: bounds.origin, anchor: .topLeading,
+                        proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+            } else {
+                v.place(at: CGPoint(x: -20000, y: -20000), anchor: .topLeading, proposal: .zero)
+            }
         }
     }
 }

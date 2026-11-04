@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+### Added
+- Ways into Pinax (it cannot be the default folder viewer on macOS 27, see `docs/plans/M2-file-browser.md` section 0): global shortcut (default Option+Cmd+P, recordable in Settings, no Accessibility permission), Services "Open in Pinax", Finder Open With for folders, `open -a Pinax <folder>`, and `pinax://open?path=...` URLs. A file opens its parent folder with the file selected; a missing path opens Home with a notice.
+- Settings: choose the Terminal and Editor app (only installed ones are listed); File menu "Open in Terminal" (Option+Shift+Cmd+T) and "Open in Editor" (Option+Shift+Cmd+E).
+
+### Fixed
+- Opening a file, URL or `PINAX_OPEN` no longer produces an extra default window, and `PINAX_OPEN` no longer turns every restored window into an identical tab.
+
 ## [0.1.1] - 2026-11-04
 
 ### Added

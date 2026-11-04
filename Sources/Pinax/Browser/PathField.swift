@@ -25,7 +25,7 @@ struct PathField: NSViewRepresentable {
             guard let window = field.window else { return }
             window.makeFirstResponder(field)
             if let editor = field.currentEditor() {
-                editor.selectedRange = NSRange(location: (initialText as NSString).length, length: 0)
+                editor.selectedRange = NSRange(location: 0, length: (initialText as NSString).length) // chọn hết → gõ là thay
             }
         }
         return field
@@ -45,9 +45,10 @@ struct PathField: NSViewRepresentable {
         func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             switch selector {
             case #selector(NSResponder.insertTab(_:)):
-                tab(textView)
+                tab(textView, backwards: false)
                 return true
             case #selector(NSResponder.insertBacktab(_:)):
+                tab(textView, backwards: true)
                 return true
             case #selector(NSResponder.insertNewline(_:)):
                 if parent.onSubmit(textView.string) {
@@ -81,50 +82,20 @@ struct PathField: NSViewRepresentable {
             parent.onCancel()
         }
 
-        private func tab(_ tv: NSTextView) {
-            let text = tv.string
-            if var c = cycle, c.matches.indices.contains(c.index), c.matches[c.index] == text {
-                c.index = (c.index + 1) % c.matches.count
-                cycle = c
-                set(tv, c.matches[c.index])
-                parent.onSuggestions(c.matches, c.index)
-                return
-            }
-            let matches = PathCompletion.complete(text, home: home)
-            guard !matches.isEmpty else {
+        private func tab(_ tv: NSTextView, backwards: Bool) {
+            guard let step = PathCompletion.step(text: tv.string, home: home, cycle: cycle, backwards: backwards) else {
                 NSSound.beep()
                 parent.onSuggestions([], nil)
                 return
             }
-            if matches.count == 1 {
-                cycle = nil
-                set(tv, matches[0])
-                parent.onSuggestions([], nil)
-                return
-            }
-            let common = Self.commonPrefix(matches)
-            if common.count > text.count {
-                cycle = nil
-                set(tv, common)
-                parent.onSuggestions(matches, nil)
-            } else {
-                cycle = (matches, 0)
-                set(tv, matches[0])
-                parent.onSuggestions(matches, 0)
-            }
+            cycle = step.index.map { (step.matches, $0) }
+            set(tv, step.text)
+            parent.onSuggestions(step.matches, step.index)
         }
 
         private func set(_ tv: NSTextView, _ s: String) {
             tv.string = s
             tv.setSelectedRange(NSRange(location: (s as NSString).length, length: 0))
-        }
-
-        private static func commonPrefix(_ list: [String]) -> String {
-            var prefix = Substring(list[0])
-            for s in list.dropFirst() {
-                while !prefix.isEmpty, !s.lowercased().hasPrefix(prefix.lowercased()) { prefix = prefix.dropLast() }
-            }
-            return String(prefix)
         }
 
         private func reject(_ field: NSTextField?) {

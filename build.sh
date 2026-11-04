@@ -31,6 +31,27 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>NSHumanReadableCopyright</key><string>MIT License</string>
+  <key>CFBundleDocumentTypes</key>
+  <array><dict>
+    <key>CFBundleTypeName</key><string>Folder</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>LSHandlerRank</key><string>Alternate</string>
+    <key>LSItemContentTypes</key><array><string>public.folder</string></array>
+  </dict></array>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>com.duchuynguyen93.pinax.open</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>CFBundleURLSchemes</key><array><string>pinax</string></array>
+  </dict></array>
+  <key>NSServices</key>
+  <array><dict>
+    <key>NSMenuItem</key><dict><key>default</key><string>Open in Pinax</string></dict>
+    <key>NSMessage</key><string>openInPinax</string>
+    <key>NSPortName</key><string>Pinax</string>
+    <key>NSSendFileTypes</key><array><string>public.folder</string><string>public.item</string></array>
+    <key>NSRequiredContext</key><dict/>
+  </dict></array>
 </dict></plist>
 PLIST
 

@@ -33,4 +33,39 @@ public enum PathCompletion {
         matches.sort { $0.localizedStandardCompare($1) == .orderedAscending }
         return matches.prefix(maxResults).map { typedParent + $0 + "/" }
     }
+
+    /// Tiền tố chung dài nhất (không phân biệt hoa/thường, lấy dạng chữ của phần tử đầu).
+    public static func commonPrefix(_ list: [String]) -> String {
+        guard let first = list.first else { return "" }
+        var prefix = Substring(first)
+        for s in list.dropFirst() {
+            while !prefix.isEmpty, !s.lowercased().hasPrefix(prefix.lowercased()) { prefix = prefix.dropLast() }
+        }
+        return String(prefix)
+    }
+
+    /// Kết quả một lần bấm Tab / ⇧Tab trên `text`.
+    public struct Step: Equatable, Sendable {
+        public var text: String
+        public var matches: [String]
+        /// Chỉ số đang chọn trong `matches` khi đang xoay vòng; nil nếu mới điền tiền tố chung / duy nhất.
+        public var index: Int?
+    }
+
+    /// Áp dụng Tab. `cycle` là trạng thái xoay vòng của lần bấm trước (nếu `text` vẫn là mục đang chọn thì chuyển mục).
+    /// Trả nil nếu không có gợi ý nào. Giữ nguyên dạng `~` người dùng gõ.
+    public static func step(text: String, home: URL, cycle: (matches: [String], index: Int)?, backwards: Bool = false) -> Step? {
+        if let c = cycle, c.matches.indices.contains(c.index), c.matches[c.index] == text {
+            let n = c.matches.count
+            let next = (c.index + (backwards ? n - 1 : 1)) % n
+            return Step(text: c.matches[next], matches: c.matches, index: next)
+        }
+        let matches = complete(text, home: home)
+        guard !matches.isEmpty else { return nil }
+        if matches.count == 1 { return Step(text: matches[0], matches: [], index: nil) }
+        let common = commonPrefix(matches)
+        if common.count > text.count { return Step(text: common, matches: matches, index: nil) }
+        let start = backwards ? matches.count - 1 : 0
+        return Step(text: matches[start], matches: matches, index: start)
+    }
 }

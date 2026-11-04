@@ -119,12 +119,26 @@ Items that could not be restored, or were skipped when moving, tell you why:
 
 An undo of a batch whose items you already took out of the Trash reports them as gone; it never fails the whole batch because of one item.
 
+## Opening folders in Pinax
+
+macOS 27 does not let a third-party app replace Finder as the default folder viewer (details: [plan, section 0](docs/plans/M2-file-browser.md)). Pinax offers these entry points instead:
+
+- **Global shortcut.** Option+Cmd+P brings Pinax to the front, or opens a window if none is open. Change, record or turn it off in Settings > Global shortcut. It needs no Accessibility permission; if the combination is taken by another app Settings shows a warning.
+- **Services.** In Finder, right-click a folder (or file) > Services (or Quick Actions) > **Open in Pinax**. If the item is missing, enable it in System Settings > Keyboard > Keyboard Shortcuts > Services > Files and Folders > "Open in Pinax". A new service may need a re-login or `/System/Library/CoreServices/pbs -update` before it shows up.
+- **Open With.** Right-click a folder > Open With > Pinax (it is listed as an alternate, never the default).
+- **Terminal.** `open -a Pinax .` opens the current directory; add `alias pinax='open -a Pinax'` to your shell profile and run `pinax ~/Downloads`.
+- **URL.** `pinax://open?path=%2FUsers%2Fme%2FDownloads` (percent-encode the path) for Raycast, Alfred or Shortcuts. A file opens its folder with the file selected; a missing path opens Home with a notice.
+- **Open in Terminal / Editor.** Pick the apps in Settings; then File > Open in Terminal (Option+Shift+Cmd+T) or Open in Editor (Option+Shift+Cmd+E) for the folder in the front window.
+
+Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc định trên macOS 27, nên dùng phím tắt toàn cục (mặc định Option+Cmd+P), Services "Open in Pinax", Mở bằng (Open With), `open -a Pinax .` hoặc `pinax://open?path=…`.
+
 ## 6. Settings
 
 - **Language**: System, English, Tiếng Việt. Applies instantly.
 - **Thresholds**: large file size (MB), and days for old downloads (90), unused apps (180), screen recordings (30), stale projects (180).
 - **Project folders**: where to look for old `node_modules`.
 - **Tidy folder**: the folder the Downloads screen organises (default Downloads).
+- **Global shortcut**, **Open in Terminal / Editor**: see [Opening folders in Pinax](#opening-folders-in-pinax).
 - **Permissions**: Full Disk Access status and a shortcut to System Settings.
 - **Trash**: opens the Trash. Pinax never empties it.
 

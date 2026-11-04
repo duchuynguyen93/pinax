@@ -2,8 +2,18 @@ import AppKit
 import Observation
 import PinaxCore
 
-/// Cách hiển thị thư mục. Hiện chỉ có list; icon view thêm ở bước sau.
-enum BrowserViewMode { case list }
+/// Cách hiển thị thư mục.
+enum BrowserViewMode: String { case list, icons }
+
+/// Ba cỡ của icon view: cạnh icon (pt) và bề rộng ô.
+enum IconSize: Int, CaseIterable {
+    case small, medium, large
+    var points: CGFloat { [48, 80, 128][rawValue] }
+    var cellWidth: CGFloat { points + 40 }
+    var cellHeight: CGFloat { points + 58 }
+    var larger: IconSize? { IconSize(rawValue: rawValue + 1) }
+    var smaller: IconSize? { IconSize(rawValue: rawValue - 1) }
+}
 
 enum BrowseError: Equatable {
     case denied
@@ -34,7 +44,20 @@ final class BrowserModel {
     private(set) var backStack: [URL] = []
     private(set) var forwardStack: [URL] = []
     var pathEditing = false
-    var viewMode: BrowserViewMode = .list
+    var viewMode: BrowserViewMode {
+        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: Self.viewModeKey) }
+    }
+    var iconSize: IconSize {
+        didSet { UserDefaults.standard.set(iconSize.rawValue, forKey: Self.iconSizeKey) }
+    }
+    /// Đang xem trước (Quick Look) file nào; `quickLookURLs` là danh sách điều hướng được bằng phím mũi tên.
+    var quickLookURL: URL?
+    private(set) var quickLookURLs: [URL] = []
+    /// Kích thước thư mục tính nền, dùng chung cho list và icon view.
+    @ObservationIgnored let folderSizes = FolderSizeStore()
+
+    static let viewModeKey = "pinax.browser.viewMode"
+    static let iconSizeKey = "pinax.browser.iconSize"
 
     @ObservationIgnored private var listTask: Task<Void, Never>?
     @ObservationIgnored private var sortTask: Task<Void, Never>?
@@ -47,6 +70,9 @@ final class BrowserModel {
         self.prefs = prefs
         self.toast = toast
         folder = FileManager.default.homeDirectoryForCurrentUser
+        let ud = UserDefaults.standard
+        viewMode = BrowserViewMode(rawValue: ud.string(forKey: Self.viewModeKey) ?? "") ?? .list
+        iconSize = IconSize(rawValue: ud.object(forKey: Self.iconSizeKey) as? Int ?? 1) ?? .medium
     }
 
     // MARK: Trạng thái dẫn xuất
@@ -124,6 +150,7 @@ final class BrowserModel {
     }
 
     func showPinax(_ section: SidebarSection) {
+        folderSizes.cancelAll()
         pathEditing = false
         pinax = section
     }
@@ -132,6 +159,8 @@ final class BrowserModel {
         #if DEBUG
         navStart = DispatchTime.now().uptimeNanoseconds
         #endif
+        folderSizes.cancelAll()
+        quickLookURL = nil
         folder = target
         selection = select.map { [$0] } ?? []
         if select != nil { revealToken += 1 }
@@ -154,6 +183,20 @@ final class BrowserModel {
             navigate(to: url.deletingLastPathComponent(), select: url.path)
         }
         return true
+    }
+
+    // MARK: Kiểu xem, Quick Look
+
+    func zoomIn() { if viewMode == .icons, let s = iconSize.larger { iconSize = s } }
+    func zoomOut() { if viewMode == .icons, let s = iconSize.smaller { iconSize = s } }
+
+    /// Space: mở / đóng xem trước. Nhiều mục chọn → duyệt trong phần chọn; một mục → duyệt cả thư mục.
+    func toggleQuickLook() {
+        if quickLookURL != nil { quickLookURL = nil; return }
+        let sel = selectedItems
+        guard let first = sel.first else { return }
+        quickLookURLs = sel.count > 1 ? sel.map(\.url) : items.map(\.url)
+        quickLookURL = first.url
     }
 
     // MARK: Mở mục
@@ -234,6 +277,7 @@ final class BrowserModel {
             availableBytes = listing.available
             error = nil
             selection.formIntersection(Set(listing.items.map { $0.url.path }))
+            folderSizes.request(listing.items)
             if listing.sort != prefs.sort { resort() }
         case .failure(let err):
             if err is CancellationError { return }
