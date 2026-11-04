@@ -1,0 +1,5 @@
+.build/
+Pinax.app
+dist/
+.DS_Store
+.swiftpm/
