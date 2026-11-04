@@ -131,3 +131,8 @@ struct Problem: Identifiable {
         }
     }
 }
+
+// MARK: - Trình duyệt
+
+func selectedText(_ n: Int) -> String { L("\(n) selected", "\(n) đã chọn") }
+func availableText(_ size: String) -> String { L("\(size) available", "\(size) trống") }

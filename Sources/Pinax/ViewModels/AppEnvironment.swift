@@ -3,7 +3,7 @@ import Observation
 import PinaxCore
 
 enum SidebarSection: String, CaseIterable, Identifiable {
-    case smartClean, downloads, history, settings
+    case smartClean, downloads, history
     var id: String { rawValue }
 
     var title: String {
@@ -11,7 +11,6 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .smartClean: L("Smart Clean", "Dọn dẹp thông minh")
         case .downloads: L("Downloads", "Downloads")
         case .history: L("History", "Lịch sử")
-        case .settings: L("Settings", "Cài đặt")
         }
     }
 
@@ -20,7 +19,6 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .smartClean: "sparkles"
         case .downloads: "arrow.down.circle"
         case .history: "clock.arrow.circlepath"
-        case .settings: "gearshape"
         }
     }
 }
@@ -33,11 +31,14 @@ final class AppEnvironment {
     let history: HistoryModel
     let smart: SmartCleanModel
     let tidy: TidyModel
-    var section: SidebarSection = .smartClean
+    let prefs = BrowserPrefs()
+    let favorites = FavoritesModel()
+    let volumes: VolumesModel
 
     init() {
         let history = HistoryModel(store: JournalStore())
         self.history = history
+        volumes = VolumesModel(toast: toast)
         smart = SmartCleanModel(settings: settings, history: history, toast: toast)
         tidy = TidyModel(settings: settings, history: history, toast: toast)
         toast.undoHandler = { [weak self] batch in self?.undo(batch) }
@@ -66,7 +67,6 @@ final class AppEnvironment {
 
     func tidyNow() {
         guard tidy.canTidy else { return }
-        section = .downloads
         tidy.tidy()
     }
 }
