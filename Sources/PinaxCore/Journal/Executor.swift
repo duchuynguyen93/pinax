@@ -4,16 +4,28 @@ import Foundation
 public struct Executor {
     public let store: JournalStore
     public let applicationsRoot: URL
+    public let volumesRoot: URL
+    public let isExternalVolume: PathGuard.VolumeCheck
 
-    public init(store: JournalStore, applicationsRoot: URL = URL(fileURLWithPath: "/Applications")) {
+    public init(store: JournalStore,
+                applicationsRoot: URL = URL(fileURLWithPath: "/Applications"),
+                volumesRoot: URL = URL(fileURLWithPath: "/Volumes"),
+                isExternalVolume: @escaping PathGuard.VolumeCheck = PathGuard.defaultIsExternalVolume) {
         self.store = store
         self.applicationsRoot = applicationsRoot
+        self.volumesRoot = volumesRoot
+        self.isExternalVolume = isExternalVolume
+    }
+
+    func makeGuard(home: URL) -> PathGuard {
+        PathGuard(home: home, applicationsRoot: applicationsRoot,
+                  volumesRoot: volumesRoot, isExternalVolume: isExternalVolume)
     }
 
     // MARK: Perform: Trash
 
     public func perform(candidates: [Candidate], title: String, trasher: Trasher, home: URL) -> PerformResult {
-        let guardian = PathGuard(home: home, applicationsRoot: applicationsRoot)
+        let guardian = makeGuard(home: home)
         var outcomes: [ItemOutcome] = []
         var ops: [JournalOp] = []
 
@@ -50,7 +62,7 @@ public struct Executor {
     // MARK: Perform: Tidy (tạo thư mục + di chuyển)
 
     public func perform(moves: [(from: URL, to: URL)], createDirs: [URL], title: String, home: URL) -> PerformResult {
-        let guardian = PathGuard(home: home, applicationsRoot: applicationsRoot)
+        let guardian = makeGuard(home: home)
         let fm = FileManager.default
         var outcomes: [ItemOutcome] = []
         var ops: [JournalOp] = []
@@ -80,8 +92,8 @@ public struct Executor {
             guard Self.exists(m.from) else {
                 outcomes.append(.init(url: m.from, status: .skipped(.missing))); continue
             }
-            // Không bao giờ ghi đè đích.
-            if Self.exists(m.to) {
+            // Không bao giờ ghi đè đích. Ngoại lệ: đổi hoa/thường tên (cùng inode trên ổ không phân biệt hoa/thường).
+            if Self.exists(m.to) && !Self.isCaseOnlyRename(m.from, m.to) {
                 outcomes.append(.init(url: m.from, status: .skipped(.destinationExists))); continue
             }
             do {
@@ -164,6 +176,14 @@ public struct Executor {
     static func exists(_ url: URL) -> Bool {
         var st = stat()
         return lstat(url.path, &st) == 0
+    }
+
+    /// `a` → `A` trên ổ không phân biệt hoa/thường: đích "tồn tại" nhưng chính là nguồn.
+    static func isCaseOnlyRename(_ from: URL, _ to: URL) -> Bool {
+        guard from.path != to.path, from.path.lowercased() == to.path.lowercased() else { return false }
+        var a = stat(), b = stat()
+        guard lstat(from.path, &a) == 0, lstat(to.path, &b) == 0 else { return false }
+        return a.st_dev == b.st_dev && a.st_ino == b.st_ino
     }
 
     static func isSymlink(_ url: URL) -> Bool {
