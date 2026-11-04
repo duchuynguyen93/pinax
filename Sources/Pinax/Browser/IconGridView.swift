@@ -4,7 +4,6 @@ import PinaxCore
 
 /// NSCollectionView có double-click, phím tắt trình duyệt, type-to-select và chỗ gắn context menu.
 final class BrowserCollectionView: NSCollectionView {
-    /// Extension point: bước D gắn menu chuột phải ở đây.
     var menuProvider: ((NSEvent) -> NSMenu?)?
     var keyHandler: ((NSEvent) -> Bool)?
     var onOpen: (() -> Void)?
@@ -37,9 +36,15 @@ final class BrowserCollectionView: NSCollectionView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         // Chuột phải vào mục chưa chọn → chọn riêng mục đó (như Finder).
-        if let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)), !selectionIndexPaths.contains(ip) {
-            selectionIndexPaths = [ip]
-            delegate?.collectionView?(self, didSelectItemsAt: [ip])
+        if let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
+            if !selectionIndexPaths.contains(ip) {
+                selectionIndexPaths = [ip]
+                delegate?.collectionView?(self, didSelectItemsAt: [ip])
+            }
+        } else if !selectionIndexPaths.isEmpty {
+            let old = selectionIndexPaths
+            selectionIndexPaths = []
+            delegate?.collectionView?(self, didDeselectItemsAt: old)
         }
         return menuProvider?(event) ?? super.menu(for: event)
     }
@@ -114,6 +119,7 @@ struct IconGridView: NSViewRepresentable {
     let revealToken: Int
     let iconSize: IconSize
     let pathEditing: Bool
+    let renameToken: Int
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
@@ -136,6 +142,7 @@ struct IconGridView: NSViewRepresentable {
         collection.keyHandler = { [weak c] e in c.map { BrowserKeys.handle(e, model: $0.model) } ?? false }
         collection.onOpen = { [weak c] in c?.model.openSelection() }
         collection.onTypeSelect = { [weak c] s in c?.typeSelect(s) }
+        collection.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
 
         let scroll = NSScrollView()
         scroll.documentView = collection
@@ -151,7 +158,7 @@ struct IconGridView: NSViewRepresentable {
         let c = context.coordinator
         c.model = model
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
-               iconSize: iconSize, pathEditing: pathEditing)
+               iconSize: iconSize, pathEditing: pathEditing, renameToken: renameToken)
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
@@ -160,7 +167,7 @@ struct IconGridView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout {
+    final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout, NSTextFieldDelegate {
         static let itemID = NSUserInterfaceItemIdentifier("pinax.icon")
         var model: BrowserModel
         weak var collection: BrowserCollectionView?
@@ -172,10 +179,12 @@ struct IconGridView: NSViewRepresentable {
         private var wasEditingPath = false
         private var didInitialFocus = false
         private var isUpdating = false
+        private var editing: (path: String, original: String, field: NSTextField)?
+        private var cancelled = false
 
         init(model: BrowserModel) { self.model = model }
 
-        func sync(generation: Int, resetToken: Int, revealToken: Int, iconSize: IconSize, pathEditing: Bool) {
+        func sync(generation: Int, resetToken: Int, revealToken: Int, iconSize: IconSize, pathEditing: Bool, renameToken: Int = 0) {
             guard let collection else { return }
             isUpdating = true
             defer { isUpdating = false }
@@ -190,14 +199,15 @@ struct IconGridView: NSViewRepresentable {
                 thumbs.cancelAll()
                 needsReload = true
             }
-            if generation != lastGeneration {
+            // Đang gõ tên mới thì chưa nạp lại (watcher báo ngay sau New Folder); nạp khi gõ xong.
+            if generation != lastGeneration, editing == nil {
                 lastGeneration = generation
                 if resetToken != lastReset { thumbs.cancelAll() }
                 items = model.items
                 indexByPath = Dictionary(items.enumerated().map { ($1.url.path, $0) }, uniquingKeysWith: { a, _ in a })
                 needsReload = true
             }
-            guard needsReload else { finishFocus(pathEditing); return }
+            guard needsReload, editing == nil else { finishFocus(pathEditing); startPendingRename(); return }
 
             collection.reloadData()
             let paths = Set(model.selection.compactMap { indexByPath[$0] }.map { IndexPath(item: $0, section: 0) })
@@ -223,6 +233,69 @@ struct IconGridView: NSViewRepresentable {
                 collection.window?.makeFirstResponder(collection)
             }
             finishFocus(pathEditing)
+            startPendingRename()
+        }
+
+        private func startPendingRename() {
+            guard let path = model.pendingRename, editing == nil, indexByPath[path] != nil else { return }
+            model.pendingRename = nil
+            DispatchQueue.main.async { [weak self] in self?.beginRename(path: path) }
+        }
+
+        // MARK: Đổi tên tại chỗ (ô tên trở thành field soạn thảo ngay dưới icon)
+
+        private func beginRename(path: String) {
+            guard let collection, let i = indexByPath[path], i < items.count else { return }
+            let ip = IndexPath(item: i, section: 0)
+            collection.selectionIndexPaths = [ip]
+            publishSelection()
+            collection.scrollToItems(at: [ip], scrollPosition: .nearestHorizontalEdge)
+            collection.layoutSubtreeIfNeeded()
+            guard let cell = collection.item(at: ip) as? IconItem else { return }
+            let item = items[i]
+            let field = cell.itemView.title
+            field.isEditable = true
+            field.isSelectable = true
+            field.drawsBackground = true
+            field.backgroundColor = .textBackgroundColor
+            field.delegate = self
+            editing = (path, item.name, field)
+            cancelled = false
+            guard collection.window?.makeFirstResponder(field) == true else { endEditing(field); return }
+            field.currentEditor()?.selectedRange = NSRange(
+                location: 0, length: FileNameSelection.length(of: item.name, stripExtension: !item.isNavigableFolder))
+        }
+
+        private func endEditing(_ field: NSTextField) {
+            editing = nil
+            field.isEditable = false
+            field.isSelectable = false
+            field.drawsBackground = false
+            field.delegate = nil
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField, let e = editing else { return }
+            let text = field.stringValue
+            endEditing(field)
+            if cancelled || text == e.original || !model.commitRename(path: e.path, to: text) {
+                field.stringValue = e.original
+            }
+            cancelled = false
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let collection else { return }
+                collection.window?.makeFirstResponder(collection)
+                // Bù lần nạp lại đã hoãn trong lúc gõ.
+                sync(generation: model.generation, resetToken: model.resetToken, revealToken: model.revealToken,
+                     iconSize: model.iconSize, pathEditing: model.pathEditing, renameToken: model.renameToken)
+            }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard commandSelector == #selector(NSResponder.cancelOperation(_:)) else { return false }
+            cancelled = true
+            collection?.window?.makeFirstResponder(collection)
+            return true
         }
 
         private func finishFocus(_ pathEditing: Bool) {

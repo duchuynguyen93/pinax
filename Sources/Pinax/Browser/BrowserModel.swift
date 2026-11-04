@@ -24,7 +24,11 @@ enum BrowseError: Equatable {
 @MainActor @Observable
 final class BrowserModel {
     let prefs: BrowserPrefs
-    private let toast: ToastModel
+    let toast: ToastModel
+    let history: HistoryModel
+    let home: URL
+    /// Git ở path bar (chỉ đọc).
+    let git = GitStatusModel()
 
     private(set) var folder: URL
     /// Khác nil → vùng nội dung hiện màn M1 tương ứng thay vì thư mục.
@@ -53,6 +57,11 @@ final class BrowserModel {
     /// Đang xem trước (Quick Look) file nào; `quickLookURLs` là danh sách điều hướng được bằng phím mũi tên.
     var quickLookURL: URL?
     private(set) var quickLookURLs: [URL] = []
+    /// Tăng khi cần bắt đầu đổi tên tại chỗ `pendingRename`.
+    private(set) var renameToken = 0
+    /// Đường dẫn mục cần đổi tên; view xử lý khi mục đã có trong danh sách rồi xoá.
+    @ObservationIgnored var pendingRename: String?
+    @ObservationIgnored weak var window: NSWindow?
     /// Kích thước thư mục tính nền, dùng chung cho list và icon view.
     @ObservationIgnored let folderSizes = FolderSizeStore()
 
@@ -66,9 +75,11 @@ final class BrowserModel {
     /// Mốc bắt đầu điều hướng, để in thời gian tới lúc bảng nạp xong (DEBUG).
     @ObservationIgnored var navStart: UInt64?
 
-    init(prefs: BrowserPrefs, toast: ToastModel) {
+    init(prefs: BrowserPrefs, toast: ToastModel, history: HistoryModel, home: URL) {
         self.prefs = prefs
         self.toast = toast
+        self.history = history
+        self.home = home
         folder = FileManager.default.homeDirectoryForCurrentUser
         let ud = UserDefaults.standard
         viewMode = BrowserViewMode(rawValue: ud.string(forKey: Self.viewModeKey) ?? "") ?? .list
@@ -111,6 +122,7 @@ final class BrowserModel {
         }
         beginLoad(reset: true)
         installWatcher()
+        git.folderChanged(folder)
     }
 
     // MARK: Điều hướng
@@ -161,11 +173,13 @@ final class BrowserModel {
         #endif
         folderSizes.cancelAll()
         quickLookURL = nil
+        pendingRename = nil
         folder = target
         selection = select.map { [$0] } ?? []
         if select != nil { revealToken += 1 }
         beginLoad(reset: true)
         installWatcher()
+        git.folderChanged(folder)
     }
 
     /// Gõ đường dẫn ở ⌘L. false nếu không tồn tại (đứng yên).
@@ -233,6 +247,18 @@ final class BrowserModel {
     // MARK: Nạp danh sách
 
     func reload() { beginLoad(reset: false) }
+
+    /// Cho extension `BrowserActions` (cùng module) nạp lại và yêu cầu đổi tên.
+    func reloadAfterOperation(select paths: Set<String>? = nil, rename: String? = nil) {
+        if let paths { selection = paths; revealToken += 1 }
+        if let rename { requestRename(rename) }
+        beginLoad(reset: false)
+    }
+
+    func requestRename(_ path: String) {
+        pendingRename = path
+        renameToken += 1
+    }
 
     private struct Listing: Sendable {
         let items: [FileItem]
@@ -323,7 +349,9 @@ final class BrowserModel {
             Task { @MainActor in
                 guard let self else { return }
                 switch event {
-                case .changed: self.beginLoad(reset: false)
+                case .changed:
+                    self.beginLoad(reset: false)
+                    self.git.refresh(self.folder)
                 case .vanished: self.recoverFromMissingFolder()
                 }
             }

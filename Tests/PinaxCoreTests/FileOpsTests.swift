@@ -121,6 +121,15 @@ import Foundation
         #expect(!exists(URL(fileURLWithPath: "/usr/untitled folder")))
     }
 
+    @Test func canModifyMirrorsPathGuard() throws {
+        let f = try box.write("a.txt")
+        #expect(ops.canModify(f))
+        #expect(ops.canCreateFolder(in: box.downloads))
+        #expect(!ops.canModify(URL(fileURLWithPath: "/System/Library")))
+        #expect(!ops.canCreateFolder(in: URL(fileURLWithPath: "/usr")))
+        #expect(!ops.canModify(box.home))
+    }
+
     // MARK: trash
 
     @Test func trashJournalsAndUndoes() throws {

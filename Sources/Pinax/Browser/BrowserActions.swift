@@ -1,0 +1,154 @@
+import AppKit
+import PinaxCore
+
+/// Thao tác file của trình duyệt: mọi thứ đi qua `FileOps` → `Executor` (PathGuard, journal, hoàn tác bằng ⌘Z).
+extension BrowserModel {
+    var fileOps: FileOps { FileOps(executor: Executor(store: history.store), home: home) }
+
+    // MARK: Điều kiện bật / tắt (chỉ để bật tắt menu; Executor vẫn kiểm lại)
+
+    var canCreateFolderHere: Bool { pinax == nil && error == nil && fileOps.canCreateFolder(in: folder) }
+
+    var canRenameSelection: Bool {
+        guard pinax == nil, selection.count == 1, let item = selectedItems.first else { return false }
+        return fileOps.canModify(item.url)
+    }
+
+    var canTrashSelection: Bool {
+        guard pinax == nil, !selection.isEmpty else { return false }
+        let ops = fileOps
+        return selectedItems.contains { ops.canModify($0.url) }
+    }
+
+    private var isEditingText: Bool { window?.firstResponder is NSTextView }
+
+    // MARK: New Folder
+
+    func newFolder() {
+        guard pinax == nil else { return }
+        let r = fileOps.newFolder(in: folder, title: L("New folder", "Thư mục mới"))
+        guard let outcome = r.outcomes.first, outcome.status == .done else {
+            let status = r.outcomes.first?.status ?? .skipped(.protectedPath)
+            alert(L("Couldn't create the folder", "Không tạo được thư mục"),
+                  operationFailureText(status, name: FileOps.availableFolderName(in: folder)))
+            return
+        }
+        history.reload()
+        reloadAfterOperation(select: [outcome.url.path], rename: outcome.url.path)
+        noteJournalError(r)
+    }
+
+    // MARK: Rename
+
+    /// Return: đổi tên tại chỗ mục đang chọn (đúng một mục).
+    func beginRenameSelection() {
+        guard canRenameSelection, let item = selectedItems.first else { return }
+        requestRename(item.url.path)
+    }
+
+    /// View gọi khi người dùng chốt tên mới. true = đã đổi (hoặc không đổi gì); false = lỗi, view phải trả tên cũ.
+    @discardableResult
+    func commitRename(path: String, to raw: String) -> Bool {
+        let url = URL(fileURLWithPath: path)
+        let old = url.lastPathComponent
+        do {
+            let newName = try FileOps.validatedName(raw)
+            let r = try fileOps.rename(url, to: newName, title: L("Rename “\(old)” to “\(newName)”", "Đổi tên “\(old)” thành “\(newName)”"))
+            guard let outcome = r.outcomes.first, outcome.status == .done else {
+                alert(L("Couldn't rename “\(old)”", "Không đổi được tên “\(old)”"),
+                      operationFailureText(r.outcomes.first?.status ?? .skipped(.protectedPath), name: newName))
+                return false
+            }
+            history.reload()
+            let newPath = url.deletingLastPathComponent().appendingPathComponent(newName).path
+            reloadAfterOperation(select: [newPath])
+            noteJournalError(r)
+            return true
+        } catch let e as FileNameError {
+            if e == .unchanged { return true }
+            alert(L("Couldn't rename “\(old)”", "Không đổi được tên “\(old)”"), fileNameErrorText(e))
+            return false
+        } catch {
+            alert(L("Couldn't rename “\(old)”", "Không đổi được tên “\(old)”"), error.localizedDescription)
+            return false
+        }
+    }
+
+    // MARK: Move to Trash
+
+    func trashSelection() {
+        guard canTrashSelection, !isEditingText else { return }
+        let urls = selectedItems.map(\.url)
+        let store = history.store, home = home
+        let title = L("Move to Trash: \(itemsText(urls.count))", "Chuyển vào Thùng rác: \(itemsText(urls.count))")
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                FileOps(executor: Executor(store: store), home: home).trash(items: urls, title: title)
+            }.value
+            finishTrash(result)
+        }
+    }
+
+    private func finishTrash(_ result: PerformResult) {
+        history.reload()
+        let done = result.outcomes.filter { $0.status == .done }.count
+        let problems = result.outcomes.compactMap(Problem.from)
+        var message: String
+        if done > 0 {
+            message = movedToTrashText(done)
+        } else if result.outcomes.allSatisfy({ $0.status == .skipped(.protectedPath) }) {
+            message = protectedLocationText()
+        } else {
+            message = L("Nothing was moved", "Chưa chuyển được mục nào")
+        }
+        if !problems.isEmpty && done > 0 {
+            message += L(" · \(problems.count) skipped or failed", " · \(problems.count) mục bị bỏ qua hoặc lỗi")
+        }
+        if let e = result.journalError {
+            message += L(" · history could not be saved: \(e)", " · không ghi được lịch sử: \(e)")
+        }
+        toast.show(message, undoBatch: result.batch, problems: problems)
+        reload()
+    }
+
+    // MARK: Copy Path, Show in Finder
+
+    /// Đường dẫn POSIX thuần, mỗi dòng một đường dẫn; không chọn gì thì chép đường dẫn thư mục hiện tại.
+    func copyPath() {
+        guard pinax == nil else { return }
+        let paths = selection.isEmpty ? [folder.path] : selectedItems.map(\.url.path)
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(paths.joined(separator: "\n"), forType: .string)
+    }
+
+    func showInFinder() {
+        guard pinax == nil else { return }
+        if selection.isEmpty {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+        } else {
+            NSWorkspace.shared.activateFileViewerSelecting(selectedItems.map(\.url))
+        }
+    }
+
+    // MARK: Hộp thoại
+
+    private func noteJournalError(_ r: PerformResult) {
+        if let e = r.journalError {
+            toast.show(L("History could not be saved: \(e)", "Không ghi được lịch sử: \(e)"))
+        }
+    }
+
+    func alert(_ message: String, _ detail: String) {
+        let a = NSAlert()
+        a.alertStyle = .warning
+        a.messageText = message
+        a.informativeText = detail
+        a.addButton(withTitle: L("OK", "OK"))
+        if let w = window ?? NSApp.keyWindow {
+            a.beginSheetModal(for: w)
+        } else {
+            a.runModal()
+        }
+    }
+}

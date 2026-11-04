@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import PinaxCore
 
-/// Phím tắt dùng chung cho list và icon view: Space = Quick Look, ⌘↓ = mở.
+/// Phím tắt dùng chung cho list và icon view: Space = Quick Look, ⌘↓ = mở, Return = đổi tên.
 @MainActor
 enum BrowserKeys {
     static func handle(_ event: NSEvent, model: BrowserModel) -> Bool {
@@ -15,13 +15,16 @@ enum BrowserKeys {
             model.openSelection()
             return true
         }
+        if flags.isEmpty, event.keyCode == 36 || event.keyCode == 76, model.canRenameSelection {
+            model.beginRenameSelection()
+            return true
+        }
         return false
     }
 }
 
-/// NSTableView có chỗ gắn context menu (bước sau).
+/// NSTableView có context menu.
 final class BrowserTableView: NSTableView {
-    /// Extension point: bước D gắn menu chuột phải ở đây.
     var menuProvider: ((NSEvent) -> NSMenu?)?
     /// Phím riêng của trình duyệt (Space, ⌘↓); trả true nếu đã xử lý.
     var keyHandler: ((NSEvent) -> Bool)?
@@ -31,7 +34,16 @@ final class BrowserTableView: NSTableView {
         super.keyDown(with: event)
     }
 
-    override func menu(for event: NSEvent) -> NSMenu? { menuProvider?(event) ?? super.menu(for: event) }
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // Như Finder: chuột phải vào mục chưa chọn → chọn riêng mục đó; vào chỗ trống → bỏ chọn.
+        let row = row(at: convert(event.locationInWindow, from: nil))
+        if row >= 0 {
+            if !isRowSelected(row) { selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false) }
+        } else {
+            deselectAll(nil)
+        }
+        return menuProvider?(event) ?? super.menu(for: event)
+    }
 }
 
 /// Ô của bảng; khi tái dùng thì huỷ request thumbnail đang chạy của nó.
@@ -55,6 +67,7 @@ struct FileListView: NSViewRepresentable {
     let revealToken: Int
     let sort: FileSort
     let pathEditing: Bool
+    let renameToken: Int
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
@@ -96,6 +109,7 @@ struct FileListView: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         c.table = table
+        table.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
         table.keyHandler = { [weak c] event in
             guard let c else { return false }
             return BrowserKeys.handle(event, model: c.model)
@@ -113,11 +127,11 @@ struct FileListView: NSViewRepresentable {
         let c = context.coordinator
         c.model = model
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
-               sort: sort, pathEditing: pathEditing)
+               sort: sort, pathEditing: pathEditing, renameToken: renameToken)
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
         var model: BrowserModel
         weak var table: BrowserTableView?
         private var items: [FileItem] = []
@@ -126,6 +140,9 @@ struct FileListView: NSViewRepresentable {
         private var wasEditingPath = false
         private var didInitialFocus = false
         private var isUpdating = false
+        /// Mục đang đổi tên tại chỗ.
+        private var editing: (path: String, original: String)?
+        private var cancelled = false
         let thumbs = ThumbnailRequester()
         private static let iconPoints: CGFloat = 18
 
@@ -139,7 +156,7 @@ struct FileListView: NSViewRepresentable {
             table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
         }
 
-        func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool) {
+        func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool, renameToken: Int = 0) {
             guard let table else { return }
             isUpdating = true
             defer { isUpdating = false }
@@ -149,7 +166,8 @@ struct FileListView: NSViewRepresentable {
                 table.sortDescriptors = [desc]
             }
 
-            if generation != lastGeneration {
+            // Đang gõ tên mới thì chưa nạp lại bảng (watcher báo ngay sau New Folder); nạp khi gõ xong.
+            if generation != lastGeneration, editing == nil {
                 lastGeneration = generation
                 if resetToken != lastReset { thumbs.cancelAll() }
                 items = model.items
@@ -182,6 +200,59 @@ struct FileListView: NSViewRepresentable {
             // Thoát ⌘L → trả focus cho bảng để type-to-select / phím mũi tên chạy tiếp.
             if wasEditingPath, !pathEditing { table.window?.makeFirstResponder(table) }
             wasEditingPath = pathEditing
+
+            if let path = model.pendingRename, editing == nil, rowByPath[path] != nil {
+                model.pendingRename = nil
+                DispatchQueue.main.async { [weak self] in self?.beginRename(path: path) }
+            }
+        }
+
+        // MARK: Đổi tên tại chỗ
+
+        private func beginRename(path: String) {
+            guard let table, let row = rowByPath[path], row < items.count else { return }
+            let col = table.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+            guard col >= 0 else { return }
+            let item = items[row]
+            table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            table.scrollRowToVisible(row)
+            guard let cell = table.view(atColumn: col, row: row, makeIfNecessary: true) as? ListCell,
+                  let field = cell.textField else { return }
+            field.isEditable = true
+            field.delegate = self
+            editing = (path, item.name)
+            cancelled = false
+            guard table.window?.makeFirstResponder(field) == true else {
+                editing = nil; field.isEditable = false; return
+            }
+            field.currentEditor()?.selectedRange = NSRange(
+                location: 0, length: FileNameSelection.length(of: item.name, stripExtension: !item.isNavigableFolder))
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField, let e = editing else { return }
+            editing = nil
+            field.isEditable = false
+            field.delegate = nil
+            let text = field.stringValue
+            if cancelled || text == e.original || !model.commitRename(path: e.path, to: text) {
+                field.stringValue = e.original
+            }
+            cancelled = false
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let table else { return }
+                table.window?.makeFirstResponder(table)
+                // Bù lần nạp lại đã hoãn trong lúc gõ.
+                sync(generation: model.generation, resetToken: model.resetToken, revealToken: model.revealToken,
+                     sort: model.prefs.sort, pathEditing: model.pathEditing, renameToken: model.renameToken)
+            }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard commandSelector == #selector(NSResponder.cancelOperation(_:)) else { return false }
+            cancelled = true
+            table?.window?.makeFirstResponder(table)
+            return true
         }
 
         // MARK: Data source

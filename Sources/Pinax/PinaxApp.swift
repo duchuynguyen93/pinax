@@ -68,6 +68,15 @@ struct PinaxCommands: Commands {
                 .keyboardShortcut(.downArrow, modifiers: .command)
                 .disabled(browser == nil || browser?.pinax != nil || browser?.selection.isEmpty != false)
             Divider()
+            Button(L("New Folder", "Thư mục mới")) { browser?.newFolder() }
+                .keyboardShortcut("n", modifiers: [.shift, .command])
+                .disabled(browser?.canCreateFolderHere != true)
+            Button(L("Rename", "Đổi tên")) { browser?.beginRenameSelection() }
+                .disabled(browser?.canRenameSelection != true)
+            Button(L("Move to Trash", "Chuyển vào Thùng rác")) { browser?.trashSelection() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(browser?.canTrashSelection != true)
+            Divider()
             Button(L("Open in Terminal", "Mở trong Terminal")) {
                 if let b = browser, let app = terminalApp { ExternalApps.open(b.folder, with: app) }
             }
@@ -85,6 +94,11 @@ struct PinaxCommands: Commands {
             }
             .keyboardShortcut("t", modifiers: [.option, .command])
             .disabled(!env.tidy.canTidy)
+        }
+        CommandGroup(after: .pasteboard) {
+            Button(L("Copy Path", "Chép đường dẫn")) { browser?.copyPath() }
+                .keyboardShortcut("c", modifiers: [.option, .command])
+                .disabled(browser == nil || browser?.pinax != nil)
         }
         CommandMenu(L("Go", "Đi")) {
             Button(L("Back", "Quay lại")) { browser?.back() }

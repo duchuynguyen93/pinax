@@ -136,3 +136,42 @@ struct Problem: Identifiable {
 
 func selectedText(_ n: Int) -> String { L("\(n) selected", "\(n) đã chọn") }
 func availableText(_ size: String) -> String { L("\(size) available", "\(size) trống") }
+
+// MARK: - Thao tác file
+
+func protectedLocationText() -> String { L("Pinax doesn't modify this location", "Pinax không thay đổi vị trí này") }
+
+func fileNameErrorText(_ e: FileNameError) -> String {
+    switch e {
+    case .empty: L("The name can't be empty.", "Tên không được để trống.")
+    case .containsSeparator: L("Names can't contain “/” or “:”.", "Tên không được chứa “/” hay “:”.")
+    case .reserved: L("“.” and “..” aren't valid names.", "“.” và “..” không phải tên hợp lệ.")
+    case .tooLong: L("That name is too long.", "Tên quá dài.")
+    case .unchanged: ""
+    }
+}
+
+/// Lý do một thao tác một-mục không thành công, cho hộp thoại.
+func operationFailureText(_ status: ItemStatus, name: String) -> String {
+    switch status {
+    case .done: ""
+    case .skipped(.protectedPath): protectedLocationText()
+    case .skipped(.destinationExists):
+        L("An item named “\(name)” already exists in this folder.", "Đã có mục tên “\(name)” trong thư mục này.")
+    case .skipped(let r): skipText(r)
+    case .failed(let msg): msg
+    }
+}
+
+func movedToTrashText(_ n: Int) -> String { L("Moved \(itemsText(n)) to the Trash", "Đã chuyển \(itemsText(n)) vào Thùng rác") }
+
+func gitChangeText(_ kind: GitChangeKind, _ n: Int) -> String {
+    switch kind {
+    case .conflicted: L("\(n) conflicted", "\(n) xung đột")
+    case .staged: L("\(n) staged", "\(n) đã stage")
+    case .modified: L("\(n) modified", "\(n) đã sửa")
+    case .untracked: L("\(n) untracked", "\(n) chưa theo dõi")
+    }
+}
+
+func gitChangesLabel(_ n: Int) -> String { n == 1 ? L("1 change", "1 thay đổi") : L("\(n) changes", "\(n) thay đổi") }

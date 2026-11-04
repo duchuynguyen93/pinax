@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import PinaxCore
 
 /// Breadcrumb bấm được; ⌘L đổi thành ô gõ đường dẫn.
 struct PathBar: View {
@@ -18,7 +19,6 @@ struct PathBar: View {
                     .id(model.folder.path + "#edit")
             } else {
                 crumbs
-                // Chỗ cho git ở path bar (bước D).
                 trailingSlot
             }
         }
@@ -33,7 +33,33 @@ struct PathBar: View {
         .zIndex(1)
     }
 
-    @ViewBuilder private var trailingSlot: some View { EmptyView() }
+    /// Git: `⎇ nhánh ↑1 ↓2 · 3 thay đổi`; ẩn khi không phải repo.
+    @ViewBuilder private var trailingSlot: some View {
+        if let g = model.git.summary {
+            HStack(spacing: 6) {
+                Text("⎇ \(g.branch.isEmpty ? "—" : g.branch)").lineLimit(1).truncationMode(.middle)
+                if let ab = g.aheadBehindLabel { Text(ab) }
+                if g.totalChanges > 0 { Text("· " + gitChangesLabel(g.totalChanges)) }
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .help(Self.gitTooltip(g))
+        }
+    }
+
+    private static func gitTooltip(_ g: GitSummary) -> String {
+        var lines = [g.detached ? L("Detached HEAD at \(g.branch)", "HEAD tách rời tại \(g.branch)") : L("Branch \(g.branch)", "Nhánh \(g.branch)")]
+        if g.ahead > 0 || g.behind > 0 {
+            lines.append(L("\(g.ahead) ahead, \(g.behind) behind upstream", "Đi trước \(g.ahead), sau \(g.behind) so với upstream"))
+        }
+        if g.changeBreakdown.isEmpty {
+            lines.append(L("Working tree clean", "Không có thay đổi"))
+        } else {
+            lines += g.changeBreakdown.map { gitChangeText($0.kind, $0.count) }
+        }
+        return lines.joined(separator: "\n")
+    }
 
     private static func editText(_ url: URL) -> String {
         let p = (url.path as NSString).abbreviatingWithTildeInPath

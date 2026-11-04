@@ -23,7 +23,7 @@ struct BrowserRoot: View {
 
     init(seed: BrowserSeed, env: AppEnvironment) {
         self.seed = seed
-        _model = State(initialValue: BrowserModel(prefs: env.prefs, toast: env.toast))
+        _model = State(initialValue: BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, home: env.settings.home))
     }
 
     var body: some View {
@@ -32,6 +32,7 @@ struct BrowserRoot: View {
             .id(env.settings.langPref)
             .focusedSceneValue(\.browser, model)
             .background(WindowAccessor { window in
+                model.window = window
                 window.tabbingIdentifier = "pinax.browser"
                 window.tabbingMode = .automatic
                 if seed.asTab { TabRequest.attach(window) }
@@ -43,6 +44,9 @@ struct BrowserRoot: View {
             }
             .onChange(of: env.prefs.sort) { model.resort() }
             .onChange(of: env.prefs.showHidden) { model.reload() }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+                if let w = note.object as? NSWindow, w === model.window { model.git.refresh(model.folder) }
+            }
     }
 
     /// PINAX_OPEN (QA) > thư mục đã lưu của cửa sổ này > thư mục seed (⌘T) > thư mục cuối dùng > Home.
@@ -135,10 +139,12 @@ struct BrowserContent: View {
                 switch model.viewMode {
                 case .list:
                     FileListView(model: model, generation: model.generation, resetToken: model.resetToken,
-                                 revealToken: model.revealToken, sort: model.prefs.sort, pathEditing: model.pathEditing)
+                                 revealToken: model.revealToken, sort: model.prefs.sort, pathEditing: model.pathEditing,
+                                 renameToken: model.renameToken)
                 case .icons:
                     IconGridView(model: model, generation: model.generation, resetToken: model.resetToken,
-                                 revealToken: model.revealToken, iconSize: model.iconSize, pathEditing: model.pathEditing)
+                                 revealToken: model.revealToken, iconSize: model.iconSize, pathEditing: model.pathEditing,
+                                 renameToken: model.renameToken)
                 }
             }
             .overlay { stateOverlay }

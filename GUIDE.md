@@ -119,6 +119,20 @@ Items that could not be restored, or were skipped when moving, tell you why:
 
 An undo of a batch whose items you already took out of the Trash reports them as gone; it never fails the whole batch because of one item.
 
+## File operations
+
+Everything below is journaled, shows up in History and is undone with Cmd+Z (Edit > Undo Last Batch). Nothing is ever deleted permanently.
+
+- **New Folder** (Shift+Cmd+N): creates `untitled folder` (or `untitled folder 2`...) in the current folder, selects it and starts renaming.
+- **Rename** (Return on one selected item, or right-click > Rename): edit in place in the list, or under the icon in icon view. The name without its extension is selected. Return confirms, Esc cancels. A name that already exists is refused and the old name stays.
+- **Move to Trash** (Cmd+Delete): no confirmation, because it is undoable. A toast offers Undo and lists anything skipped.
+- **Copy Path** (Option+Cmd+C): plain POSIX paths, one per line (the current folder when nothing is selected).
+- Pinax does not modify protected locations (system folders, volume roots, your home folders themselves, the Trash...): the commands are greyed out or say "Pinax doesn't modify this location".
+
+**Context menu** (right-click an item or empty space): Open, Open With (default app first, then others, then Other...), Quick Look, Rename, New Folder, Move to Trash, Copy Path, Show in Finder, Open in Terminal, Open in Editor.
+
+**Git in the path bar.** Inside a git repository the right side of the path bar shows the branch (or the short commit when detached), commits ahead/behind, and the number of changed files; hover for staged / modified / untracked / conflicted counts. It is read-only, refreshes when the folder changes or the window becomes active, and is hidden outside repositories or when Xcode Command Line Tools are not installed.
+
 ## Opening folders in Pinax
 
 macOS 27 does not let a third-party app replace Finder as the default folder viewer (details: [plan, section 0](docs/plans/M2-file-browser.md)). Pinax offers these entry points instead:
@@ -147,6 +161,10 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 | Shortcut | Action |
 |---|---|
 | Cmd+Z | Undo the latest batch (Edit menu: "Undo Last Batch") |
+| Shift+Cmd+N | New Folder (then rename in place) |
+| Return | Rename the selected item (Esc cancels) |
+| Cmd+Delete | Move the selection to the Trash |
+| Option+Cmd+C | Copy path(s) |
 | Option+Cmd+T | Tidy the selected folder (File menu: "Tidy Folder") |
 | Return / Esc | Confirm / cancel in the confirmation sheet |
 

@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 ## [Unreleased]
 
 ### Added
+- File operations in the browser, all journaled, listed in History and undoable with Cmd+Z: New Folder (Shift+Cmd+N, then rename in place), Rename (Return; the name without extension is pre-selected, Esc cancels, case-only renames work, existing names are never overwritten), Move to Trash (Cmd+Delete, no confirmation, toast with Undo). Locations Pinax protects show "Pinax doesn't modify this location".
+- Context menu in list and icon views (and on empty space): Open, Open With (default app first), Quick Look, Rename, New Folder, Move to Trash, Copy Path (Option+Cmd+C), Show in Finder, Open in Terminal / Editor.
+- Git in the path bar: branch (or short SHA when detached), ahead/behind and change count with a tooltip breakdown. Read-only, runs in the background, only when Command Line Tools are installed.
 - Ways into Pinax (it cannot be the default folder viewer on macOS 27, see `docs/plans/M2-file-browser.md` section 0): global shortcut (default Option+Cmd+P, recordable in Settings, no Accessibility permission), Services "Open in Pinax", Finder Open With for folders, `open -a Pinax <folder>`, and `pinax://open?path=...` URLs. A file opens its parent folder with the file selected; a missing path opens Home with a notice.
 - Settings: choose the Terminal and Editor app (only installed ones are listed); File menu "Open in Terminal" (Option+Shift+Cmd+T) and "Open in Editor" (Option+Shift+Cmd+E).
 
