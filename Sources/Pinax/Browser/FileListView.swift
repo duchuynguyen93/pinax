@@ -46,12 +46,12 @@ struct FileListView: NSViewRepresentable {
             return col
         }
         table.addTableColumn(column("name", L("Name", "Tên"), width: 340, min: 160, key: .name))
-        table.addTableColumn(column("modified", L("Date Modified", "Ngày sửa"), width: 190, min: 120, key: .modified))
+        table.addTableColumn(column("modified", L("Date Modified", "Ngày sửa"), width: 200, min: 120, key: .modified))
         let sizeCol = column("size", L("Size", "Dung lượng"), width: 90, min: 60, key: .size)
         sizeCol.headerCell.alignment = .right
         table.addTableColumn(sizeCol)
         table.addTableColumn(column("kind", L("Kind", "Loại"), width: 150, min: 80, key: .kind))
-        table.autosaveName = "pinax.browser.list"
+        table.autosaveName = "pinax.browser.list.v2"
         table.autosaveTableColumns = true
 
         let scroll = NSScrollView()

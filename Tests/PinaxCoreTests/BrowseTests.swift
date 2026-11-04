@@ -30,6 +30,44 @@ import Foundation
         #expect(by["a.txt"]?.modified != nil)
     }
 
+    @Test func derivesKindAndPackageWithoutHeavyKeys() async throws {
+        let dir = box.downloads
+        let fm = FileManager.default
+        try box.write("a.txt", bytes: 3)
+        try fm.createDirectory(at: dir.appendingPathComponent("Folder"), withIntermediateDirectories: false)
+        try fm.createDirectory(at: dir.appendingPathComponent("X.app/Contents"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: dir.appendingPathComponent("lnk"), withDestinationURL: dir.appendingPathComponent("a.txt"))
+        try fm.createSymbolicLink(at: dir.appendingPathComponent("lnkdir"), withDestinationURL: dir.appendingPathComponent("Folder"))
+        let by = Dictionary(uniqueKeysWithValues: try await DirectoryLister.list(dir, showHidden: false).map { ($0.name, $0) })
+
+        #expect(by["a.txt"]?.contentType?.conforms(to: .plainText) == true)
+        #expect(by["a.txt"]?.kindDescription.isEmpty == false)
+        #expect(by["Folder"]?.contentType == .folder && by["Folder"]?.isPackage == false)
+        #expect(by["Folder"]?.kindDescription.isEmpty == false)
+        // Giả .app trong thư mục tạm: nếu macOS nhận là package thì phải là package và không đi vào được.
+        let app = try #require(by["X.app"])
+        #expect(app.isNavigableFolder == !app.isPackage)
+        #expect(!app.kindDescription.isEmpty)
+        for n in ["lnk", "lnkdir"] {
+            let l = try #require(by[n])
+            #expect(l.isSymlink && !l.isPackage && !l.kindDescription.isEmpty)
+        }
+        #expect(by["a.txt"]?.tagNames.isEmpty == true && by["a.txt"]?.ubiquitousStatus == nil)
+        let detailed = by["a.txt"]!.loadingDetails()
+        #expect(detailed.url == by["a.txt"]!.url && detailed.tagNames.isEmpty)
+    }
+
+    @Test func perf10kFiles() async throws {
+        guard ProcessInfo.processInfo.environment["PINAX_PERF"] == "1" else { return }
+        for i in 0..<10_000 { FileManager.default.createFile(atPath: box.downloads.appendingPathComponent("f\(i).txt").path, contents: nil) }
+        let t0 = DispatchTime.now().uptimeNanoseconds
+        let items = try await DirectoryLister.list(box.downloads, showHidden: false)
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000
+        print("[PINAX_PERF] list 10k: \(ms) ms")
+        #expect(items.count == 10_000)
+        #expect(ms < 500)
+    }
+
     @Test func throwsOnMissingDirectoryAndHonoursCancellation() async throws {
         await #expect(throws: (any Error).self) {
             _ = try await DirectoryLister.list(box.root.appendingPathComponent("nope"), showHidden: false)

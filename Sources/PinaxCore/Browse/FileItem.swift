@@ -53,29 +53,90 @@ public struct FileItem: Identifiable, Hashable, Sendable {
     /// Thư mục thật sự đi vào được (package như `.app` coi là file).
     public var isNavigableFolder: Bool { isDirectory && !isPackage }
 
-    static let resourceKeys: [URLResourceKey] = [
-        .nameKey, .isDirectoryKey, .isPackageKey, .isHiddenKey, .isSymbolicLinkKey, .isAliasFileKey,
-        .fileSizeKey, .contentModificationDateKey, .creationDateKey, .localizedTypeDescriptionKey,
-        .contentTypeKey, .tagNamesKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey,
+    /// Key rẻ: được prefetch một lần trong `contentsOfDirectory`.
+    static let cheapKeys: [URLResourceKey] = [
+        .nameKey, .isDirectoryKey, .isHiddenKey, .isSymbolicLinkKey, .isAliasFileKey,
+        .fileSizeKey, .contentModificationDateKey,
     ]
+    static let ubiquitousKeys: [URLResourceKey] = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+    static let resourceKeys: [URLResourceKey] = cheapKeys + [
+        .isPackageKey, .creationDateKey, .localizedTypeDescriptionKey, .contentTypeKey, .tagNamesKey,
+    ] + ubiquitousKeys
 
-    /// Đọc resource values mới (xoá cache của URL trước). nil nếu không đọc được.
+    private static func ubiquitousStatus(_ v: URLResourceValues) -> UbiquitousStatus? {
+        guard v.isUbiquitousItem == true else { return nil }
+        switch v.ubiquitousItemDownloadingStatus {
+        case URLUbiquitousItemDownloadingStatus.current: return .current
+        case URLUbiquitousItemDownloadingStatus.downloaded: return .downloaded
+        default: return .notDownloaded
+        }
+    }
+
+    /// Mô tả loại theo UTType, cache theo identifier.
+    private static let descriptions = DescriptionCache()
+    private final class DescriptionCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var map: [String: String] = [:]
+        func description(for type: UTType) -> String {
+            lock.lock(); defer { lock.unlock() }
+            if let d = map[type.identifier] { return d }
+            let d = type.localizedDescription ?? ""
+            map[type.identifier] = d
+            return d
+        }
+    }
+
+    /// Dựng từ URL vừa lấy từ `contentsOfDirectory` (cache cheapKeys đã có, không xoá cache).
+    /// Loại/package suy ra từ đuôi file; tag và iCloud không đọc (trừ khi `readUbiquitous`).
+    static func listed(_ url: URL, readUbiquitous: Bool = false) -> FileItem? {
+        guard let v = try? url.resourceValues(forKeys: Set(cheapKeys)) else { return nil }
+        let name = v.name ?? url.lastPathComponent
+        let isDir = v.isDirectory ?? false
+        let ext = url.pathExtension
+        var isPackage = false
+        if isDir, !ext.isEmpty {
+            isPackage = (try? url.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
+        }
+        let type: UTType
+        if isDir {
+            if isPackage, let t = UTType(filenameExtension: ext), t.conforms(to: .package) { type = t }
+            else { type = isPackage ? .package : .folder }
+        } else {
+            type = ext.isEmpty ? .data : (UTType(filenameExtension: ext) ?? .data)
+        }
+        var ubiquitous: UbiquitousStatus?
+        if readUbiquitous, let u = try? url.resourceValues(forKeys: Set(ubiquitousKeys)) {
+            ubiquitous = ubiquitousStatus(u)
+        }
+        return FileItem(
+            url: url, name: name, isDirectory: isDir, isPackage: isPackage,
+            isHidden: (v.isHidden ?? false) || name.hasPrefix("."),
+            isSymlink: v.isSymbolicLink ?? false, isAlias: v.isAliasFile ?? false,
+            size: isDir ? nil : v.fileSize.map(Int64.init),
+            modified: v.contentModificationDate, created: nil,
+            kindDescription: descriptions.description(for: type), contentType: type,
+            tagNames: [], ubiquitousStatus: ubiquitous)
+    }
+
+    /// Bản sao đã đọc mới tag + trạng thái iCloud (listing không đọc hai trường này).
+    public func loadingDetails() -> FileItem {
+        var fresh = url
+        fresh.removeAllCachedResourceValues()
+        let v = try? fresh.resourceValues(forKeys: [.tagNamesKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
+        return FileItem(
+            url: url, name: name, isDirectory: isDirectory, isPackage: isPackage, isHidden: isHidden,
+            isSymlink: isSymlink, isAlias: isAlias, size: size, modified: modified, created: created,
+            kindDescription: kindDescription, contentType: contentType,
+            tagNames: v?.tagNames ?? [], ubiquitousStatus: v.flatMap(Self.ubiquitousStatus))
+    }
+
+    /// Đọc resource values mới, đầy đủ (xoá cache của URL trước). nil nếu không đọc được.
     static func read(_ url: URL) -> FileItem? {
         var fresh = url
         fresh.removeAllCachedResourceValues()
         guard let v = try? fresh.resourceValues(forKeys: Set(resourceKeys)) else { return nil }
         let name = v.name ?? url.lastPathComponent
         let isDir = v.isDirectory ?? false
-        let ubiquitous: UbiquitousStatus?
-        if v.isUbiquitousItem == true {
-            switch v.ubiquitousItemDownloadingStatus {
-            case URLUbiquitousItemDownloadingStatus.current: ubiquitous = .current
-            case URLUbiquitousItemDownloadingStatus.downloaded: ubiquitous = .downloaded
-            default: ubiquitous = .notDownloaded
-            }
-        } else {
-            ubiquitous = nil
-        }
         return FileItem(
             url: url, name: name, isDirectory: isDir, isPackage: v.isPackage ?? false,
             isHidden: (v.isHidden ?? false) || name.hasPrefix("."),
@@ -83,6 +144,6 @@ public struct FileItem: Identifiable, Hashable, Sendable {
             size: isDir ? nil : v.fileSize.map(Int64.init),
             modified: v.contentModificationDate, created: v.creationDate,
             kindDescription: v.localizedTypeDescription ?? "", contentType: v.contentType,
-            tagNames: v.tagNames ?? [], ubiquitousStatus: ubiquitous)
+            tagNames: v.tagNames ?? [], ubiquitousStatus: ubiquitousStatus(v))
     }
 }
