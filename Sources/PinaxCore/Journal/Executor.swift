@@ -107,6 +107,11 @@ public struct Executor {
         return finish(title: title, ops: ops, outcomes: outcomes)
     }
 
+    /// Cho `TransferRunner` ghi một batch (journal trước khi trả về).
+    public func record(title: String, ops: [JournalOp], outcomes: [ItemOutcome]) -> PerformResult {
+        finish(title: title, ops: ops, outcomes: outcomes)
+    }
+
     private func finish(title: String, ops: [JournalOp], outcomes: [ItemOutcome]) -> PerformResult {
         guard !ops.isEmpty else { return PerformResult(outcomes: outcomes, batch: nil, journalError: nil) }
         let batch = Batch(title: title, ops: ops)
@@ -123,7 +128,7 @@ public struct Executor {
 
     /// Hoàn tác theo thứ tự ngược. Mỗi op có một outcome (url = vị trí được khôi phục / thư mục bị gỡ).
     @discardableResult
-    public func undo(batch: Batch) -> [ItemOutcome] {
+    public func undo(batch: Batch, trasher: Trasher = FileManagerTrasher()) -> [ItemOutcome] {
         let fm = FileManager.default
         var outcomes: [ItemOutcome] = []
 
@@ -135,6 +140,15 @@ public struct Executor {
                 outcomes.append(restore(from: to, to: from))
             case let .createDir(dir):
                 outcomes.append(removeIfEmpty(dir, fm: fm))
+            case let .copy(_, created):
+                // Bản chép vào Thùng rác, không xoá vĩnh viễn.
+                guard Self.exists(created) else { outcomes.append(.init(url: created, status: .skipped(.missing))); continue }
+                do {
+                    _ = try trasher.trash(created)
+                    outcomes.append(.init(url: created, status: .done))
+                } catch {
+                    outcomes.append(.init(url: created, status: .failed(error.localizedDescription)))
+                }
             }
         }
         do { try store.markUndone(batch.id) } catch {

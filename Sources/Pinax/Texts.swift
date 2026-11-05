@@ -75,6 +75,9 @@ func skipText(_ r: SkipReason, isFolder: Bool = false) -> String {
     case .destinationExists: L("A file with this name already exists at the destination", "Đã có file trùng tên ở nơi đến")
     case .originalOccupied: L("The original location already has a file", "Chỗ cũ đã có file khác")
     case .directoryNotEmpty: L("Folder is not empty, kept", "Thư mục không rỗng, đã giữ lại")
+    case .intoItself: L("Can't copy a folder into itself", "Không thể chép thư mục vào chính nó")
+    case .insufficientSpace: L("Not enough free space", "Không đủ dung lượng trống")
+    case .cancelled: L("Cancelled", "Đã huỷ")
     }
 }
 

@@ -4,6 +4,8 @@ public enum JournalOp: Codable, Equatable, Sendable {
     case trash(original: URL, trashed: URL)
     case move(from: URL, to: URL)
     case createDir(URL)
+    /// Chép `source` thành `created`; hoàn tác = đưa `created` vào Thùng rác.
+    case copy(source: URL, created: URL)
 }
 
 public struct Batch: Codable, Identifiable, Equatable, Sendable {
@@ -38,6 +40,12 @@ public enum SkipReason: String, Equatable, Sendable {
     case originalOccupied
     /// Undo createDir: thư mục không rỗng.
     case directoryNotEmpty
+    /// Chép thư mục vào chính nó / con của nó.
+    case intoItself
+    /// Ổ đích không đủ dung lượng trống.
+    case insufficientSpace
+    /// Người dùng huỷ giữa chừng.
+    case cancelled
 }
 
 public enum ItemStatus: Equatable, Sendable {
