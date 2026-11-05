@@ -28,7 +28,7 @@ struct WindowAccessor: NSViewRepresentable {
 enum TabRequest {
     private static weak var source: NSWindow?
 
-    static func prepare() { source = NSApp.keyWindow }
+    static func prepare(host: NSWindow? = nil) { source = host ?? NSApp.keyWindow }
 
     /// Gộp `window` làm tab mới của cửa sổ đã ghi nhận (một lần).
     static func attach(_ window: NSWindow) {

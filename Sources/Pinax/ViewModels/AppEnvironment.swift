@@ -35,11 +35,13 @@ final class AppEnvironment {
     let favorites = FavoritesModel()
     let volumes: VolumesModel
     let transfers: TransferQueue
+    let workspaces: WorkspacesModel
 
     init() {
         let history = HistoryModel(store: JournalStore())
         self.history = history
         volumes = VolumesModel(toast: toast)
+        workspaces = WorkspacesModel(toast: toast)
         transfers = TransferQueue(history: history, toast: toast) { [settings] in settings.home }
         smart = SmartCleanModel(settings: settings, history: history, toast: toast)
         tidy = TidyModel(settings: settings, history: history, toast: toast)

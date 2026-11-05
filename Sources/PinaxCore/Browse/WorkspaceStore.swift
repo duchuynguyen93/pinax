@@ -30,7 +30,11 @@ public struct Workspace: Codable, Identifiable, Equatable, Sendable {
 /// Workspaces JSON, ghi atomic. Xoá workspace chỉ sửa JSON, không đụng file người dùng.
 public final class WorkspaceStore {
     public static var defaultURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        // QA: PINAX_QA_WORKSPACES=<file> thay file thật.
+        if let p = ProcessInfo.processInfo.environment["PINAX_QA_WORKSPACES"], !p.isEmpty {
+            return URL(fileURLWithPath: p)
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Pinax", isDirectory: true)
             .appendingPathComponent("workspaces.json")
     }

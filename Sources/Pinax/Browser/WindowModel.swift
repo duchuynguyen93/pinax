@@ -31,8 +31,11 @@ final class WindowModel {
     // MARK: Cửa sổ, dual
 
     func attach(window: NSWindow) {
+        let first = self.window !== window
         self.window = window
         for p in panes { p.window = window }
+        // Mở sẵn hai khung (workspace, khôi phục) trước khi có cửa sổ → nới cửa sổ một lần khi gắn.
+        if first, isDual { DispatchQueue.main.async { [weak self] in self?.widenForDual() } }
     }
 
     /// Nối pane vào cửa sổ: cửa sổ, cửa sổ-model, callback kích hoạt / chuyển pane.

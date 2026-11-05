@@ -12,13 +12,17 @@ struct BrowserSeed: Codable, Hashable {
     var secondPath: String?
     /// Dual: pane phải là pane active lúc mở.
     var activeRight = false
+    /// Kiểu xem áp lên pane lúc mở (workspace); nil = giữ kiểu hiện tại.
+    var viewMode: String?
 
-    init(id: UUID = UUID(), path: String? = nil, asTab: Bool = false, secondPath: String? = nil, activeRight: Bool = false) {
+    init(id: UUID = UUID(), path: String? = nil, asTab: Bool = false, secondPath: String? = nil, activeRight: Bool = false,
+         viewMode: String? = nil) {
         self.id = id
         self.path = path
         self.asTab = asTab
         self.secondPath = secondPath
         self.activeRight = activeRight
+        self.viewMode = viewMode
     }
 
     // Trạng thái cửa sổ đã lưu từ bản cũ không có hai khoá mới.
@@ -29,6 +33,7 @@ struct BrowserSeed: Codable, Hashable {
         asTab = try c.decodeIfPresent(Bool.self, forKey: .asTab) ?? false
         secondPath = try c.decodeIfPresent(String.self, forKey: .secondPath)
         activeRight = try c.decodeIfPresent(Bool.self, forKey: .activeRight) ?? false
+        viewMode = try c.decodeIfPresent(String.self, forKey: .viewMode)
     }
 }
 
@@ -64,10 +69,14 @@ struct BrowserRoot: View {
                 window.tabbingIdentifier = "pinax.browser"
                 window.tabbingMode = .automatic
                 if seed.asTab { TabRequest.attach(window) }
+                WindowRegistry.shared.register(window, model: win, seed: seed.id)
             })
             .task {
                 win.primary.start(path: initialPath())
                 if let (second, right) = initialSecond() { win.openDual(at: second, activeRight: right) }
+                if storedPath.isEmpty || seed.path != nil, let raw = seed.viewMode, let mode = BrowserViewMode(rawValue: raw) {
+                    win.panes.forEach { $0.viewMode = mode }
+                }
                 await runQATransfer()
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }

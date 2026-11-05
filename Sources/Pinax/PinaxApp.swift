@@ -76,6 +76,11 @@ struct PinaxCommands: Commands {
             Button(L("Open", "Mở")) { browser?.openSelection() }
                 .keyboardShortcut(.downArrow, modifiers: .command)
                 .disabled(browser == nil || browser?.pinax != nil || browser?.selection.isEmpty != false)
+            Button(L("Save Window as Workspace…", "Lưu cửa sổ thành workspace…")) {
+                env.workspaces.saveWindow(browserWindow?.window)
+            }
+            .keyboardShortcut("s", modifiers: [.control, .command])
+            .disabled(browserWindow == nil)
             Divider()
             Button(L("New Folder", "Thư mục mới")) { browser?.newFolder() }
                 .keyboardShortcut("n", modifiers: [.shift, .command])

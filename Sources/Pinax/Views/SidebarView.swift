@@ -1,10 +1,12 @@
 import SwiftUI
 import AppKit
+import PinaxCore
 
 enum SidebarItem: Hashable {
     case favorite(URL)
     case volume(URL)
     case pinax(SidebarSection)
+    case workspace(UUID)
 }
 
 /// Sidebar ba nhóm: Favorites, Locations, Pinax.
@@ -12,6 +14,7 @@ struct SidebarView: View {
     let model: BrowserModel
     @Environment(FavoritesModel.self) private var favorites
     @Environment(VolumesModel.self) private var volumes
+    @Environment(AppEnvironment.self) private var env
     /// Favorite đang được rê file tới (để tô sáng).
     @State private var dropTarget: URL?
 
@@ -27,6 +30,8 @@ struct SidebarView: View {
                 switch item {
                 case .favorite(let url), .volume(let url): model.navigate(to: url)
                 case .pinax(let s): model.showPinax(s)
+                case .workspace(let id):
+                    if let w = env.workspaces.items.first(where: { $0.id == id }) { OpenRouter.shared.openWorkspace(w) }
                 case nil: break
                 }
             })
@@ -68,6 +73,16 @@ struct SidebarView: View {
                     .tag(SidebarItem.volume(v.url))
                 }
             }
+            if !env.workspaces.items.isEmpty {
+                Section(L("Workspaces", "Workspace")) {
+                    ForEach(env.workspaces.items) { ws in
+                        Label(ws.name, systemImage: "rectangle.stack")
+                            .tag(SidebarItem.workspace(ws.id))
+                            .help(ws.tabs.map { FileManager.default.displayName(atPath: $0.left) }.joined(separator: "\n"))
+                            .contextMenu { workspaceMenu(ws) }
+                    }
+                }
+            }
             Section("Pinax") {
                 ForEach(SidebarSection.allCases) { s in
                     Label(s.title, systemImage: s.symbol).tag(SidebarItem.pinax(s))
@@ -76,6 +91,24 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .contextMenu { addCurrentButton }
+    }
+
+    @ViewBuilder private func workspaceMenu(_ ws: Workspace) -> some View {
+        Button(L("Open", "Mở")) { OpenRouter.shared.openWorkspace(ws) }
+        Button(L("Rename…", "Đổi tên…")) {
+            NamePrompt.ask(title: L("Rename Workspace", "Đổi tên workspace"), message: "", initial: ws.name,
+                           confirm: L("Rename", "Đổi tên"), window: model.window) { env.workspaces.rename(ws.id, to: $0) }
+        }
+        Button(L("Update from Current Window", "Cập nhật từ cửa sổ hiện tại")) {
+            if let w = model.window {
+                let tabs = WindowRegistry.shared.tabStates(for: w)
+                if !tabs.isEmpty { env.workspaces.update(ws.id, tabs: tabs) }
+            }
+        }
+        Button(L("Delete", "Xoá")) {
+            env.workspaces.delete(ws.id)
+            env.toast.show(L("Workspace deleted", "Đã xoá workspace"))
+        }
     }
 
     /// Thả file lên Favorite: ⌥ = chép, ⌘ = chuyển, mặc định theo ổ đĩa. Qua TransferQueue.

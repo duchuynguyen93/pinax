@@ -31,6 +31,23 @@ final class OpenRouter {
         send(BrowserSeed(path: target, asTab: asTab))
     }
 
+    /// Mở workspace: tab đầu là cửa sổ mới, các tab sau gộp vào đó lần lượt (đợi mỗi tab gắn xong rồi mới mở tab kế).
+    func openWorkspace(_ ws: Workspace) {
+        guard !ws.tabs.isEmpty else { return }
+        Task { @MainActor in
+            var host: NSWindow?
+            for (i, t) in ws.tabs.enumerated() {
+                let asTab = i > 0 && host != nil
+                if asTab { TabRequest.prepare(host: host) }
+                let seed = BrowserSeed(path: t.left, asTab: asTab, secondPath: t.right,
+                                       activeRight: t.activeRight, viewMode: t.viewMode)
+                send(seed)
+                let w = await WindowRegistry.shared.waitForWindow(seed: seed.id)
+                if i == 0 { host = w }
+            }
+        }
+    }
+
     /// Đưa Pinax lên trước; chưa có cửa sổ nào thì mở một cửa sổ mới ở thư mục dùng gần nhất.
     func showOrCreateWindow() {
         NSApp.activate(ignoringOtherApps: true)
@@ -66,6 +83,26 @@ final class OpenRouter {
         else { return nil }
         return (path as NSString).expandingTildeInPath
     }
+
+    /// `pinax://workspace?name=<tên>` (không phân biệt hoa/thường); trả nil nếu không phải URL workspace.
+    static func workspaceName(fromPinaxURL url: URL) -> String? {
+        guard url.scheme == "pinax", url.host == "workspace",
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let name = comps.queryItems?.first(where: { $0.name == "name" })?.value, !name.isEmpty
+        else { return nil }
+        return name
+    }
+
+    /// Mở workspace theo tên; không có thì báo bằng toast.
+    func openWorkspace(named name: String) {
+        guard let env else { return }
+        if let ws = env.workspaces.items.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            openWorkspace(ws)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            env.toast.show(L("No workspace named “\(name)”", "Không có workspace tên “\(name)”"))
+        }
+    }
 }
 
 final class PinaxAppDelegate: NSObject, NSApplicationDelegate {
@@ -87,6 +124,10 @@ final class PinaxAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         Task { @MainActor in
             for (i, url) in urls.enumerated() {
+                if let name = OpenRouter.workspaceName(fromPinaxURL: url) {
+                    OpenRouter.shared.openWorkspace(named: name)
+                    continue
+                }
                 let target: URL? = url.isFileURL ? url
                     : OpenRouter.path(fromPinaxURL: url).map { URL(fileURLWithPath: $0) }
                 guard let target else { continue }
