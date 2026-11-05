@@ -49,12 +49,20 @@ struct BrowserRoot: View {
             }
     }
 
-    /// PINAX_OPEN (QA) > thư mục đã lưu của cửa sổ này > thư mục seed (⌘T) > thư mục cuối dùng > Home.
+    /// PINAX_OPEN (QA, chỉ cửa sổ đầu tiên) > thư mục đã lưu của cửa sổ này > thư mục seed (⌘T) > thư mục cuối dùng > Home.
     private func initialPath() -> String {
-        if let p = ProcessInfo.processInfo.environment["PINAX_OPEN"], !p.isEmpty { return p }
+        if let p = Self.takeQAOpenPath() { return p }
         if !storedPath.isEmpty { return storedPath }
         if let p = seed.path { return p }
         return env.prefs.lastFolder ?? env.settings.home.path
+    }
+
+    @MainActor private static var qaOpenConsumed = false
+    /// Trả PINAX_OPEN đúng một lần; các cửa sổ mở sau (pinax://, ⌘N) đi theo seed như bình thường.
+    @MainActor private static func takeQAOpenPath() -> String? {
+        guard !qaOpenConsumed, let p = ProcessInfo.processInfo.environment["PINAX_OPEN"], !p.isEmpty else { return nil }
+        qaOpenConsumed = true
+        return p
     }
 }
 

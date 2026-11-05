@@ -86,6 +86,25 @@ public struct FileItem: Identifiable, Hashable, Sendable {
         }
     }
 
+    /// (UTType, mô tả Kind) theo (thư mục?, package?, đuôi): 10k file thường chỉ vài chục đuôi khác nhau,
+    /// khỏi tra UTType + viết hoa lại cho từng file.
+    private static let typeCache = TypeCache()
+    private final class TypeCache: @unchecked Sendable {
+        private struct Key: Hashable { let dir: Bool, pkg: Bool, ext: String }
+        private let lock = NSLock()
+        private var map: [Key: (UTType, String)] = [:]
+        func lookup(isDirectory: Bool, isPackage: Bool, ext: String) -> (UTType, String) {
+            let key = Key(dir: isDirectory, pkg: isPackage, ext: ext)
+            lock.lock()
+            if let hit = map[key] { lock.unlock(); return hit }
+            lock.unlock()
+            let type = FileItem.contentType(isDirectory: isDirectory, isPackage: isPackage, ext: ext)
+            let value = (type, FileItem.capitalizingFirst(FileItem.descriptions.description(for: type)))
+            lock.lock(); map[key] = value; lock.unlock()
+            return value
+        }
+    }
+
     /// Loại nội dung suy ra từ đuôi file. Package ưu tiên UTType của đuôi (`.app` → application-bundle → "Application")
     /// trước khi rơi về `.package` chung.
     static func contentType(isDirectory: Bool, isPackage: Bool, ext: String) -> UTType {
@@ -121,7 +140,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
         if isDir, !ext.isEmpty {
             isPackage = (try? url.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
         }
-        let type = contentType(isDirectory: isDir, isPackage: isPackage, ext: ext)
+        let (type, kind) = typeCache.lookup(isDirectory: isDir, isPackage: isPackage, ext: ext)
         var ubiquitous: UbiquitousStatus?
         if readUbiquitous, let u = try? url.resourceValues(forKeys: Set(ubiquitousKeys)) {
             ubiquitous = ubiquitousStatus(u)
@@ -132,7 +151,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
             isSymlink: v.isSymbolicLink ?? false, isAlias: v.isAliasFile ?? false,
             size: isDir ? nil : v.fileSize.map(Int64.init),
             modified: v.contentModificationDate, created: nil,
-            kindDescription: Self.capitalizingFirst(descriptions.description(for: type)), contentType: type,
+            kindDescription: kind, contentType: type,
             tagNames: [], ubiquitousStatus: ubiquitous)
     }
 

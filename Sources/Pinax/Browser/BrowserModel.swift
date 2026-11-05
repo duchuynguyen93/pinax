@@ -74,6 +74,8 @@ final class BrowserModel {
     @ObservationIgnored private var started = false
     /// Mốc bắt đầu điều hướng, để in thời gian tới lúc bảng nạp xong (DEBUG).
     @ObservationIgnored var navStart: UInt64?
+    /// PINAX_PERF_LOG=1: in thời gian từ lúc điều hướng tới lúc bảng nạp xong ra stderr (cả bản release).
+    static let perfLog = ProcessInfo.processInfo.environment["PINAX_PERF_LOG"] == "1"
 
     init(prefs: BrowserPrefs, toast: ToastModel, history: HistoryModel, home: URL) {
         self.prefs = prefs
@@ -104,9 +106,7 @@ final class BrowserModel {
     func start(path: String) {
         guard !started else { return }
         started = true
-        #if DEBUG
-        navStart = DispatchTime.now().uptimeNanoseconds
-        #endif
+        if Self.perfLog { navStart = DispatchTime.now().uptimeNanoseconds }
         let url = URL(fileURLWithPath: path)
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
@@ -168,9 +168,7 @@ final class BrowserModel {
     }
 
     private func move(to target: URL, select: String?) {
-        #if DEBUG
-        navStart = DispatchTime.now().uptimeNanoseconds
-        #endif
+        if Self.perfLog { navStart = DispatchTime.now().uptimeNanoseconds }
         folderSizes.cancelAll()
         quickLookURL = nil
         pendingRename = nil
@@ -270,29 +268,46 @@ final class BrowserModel {
         URL(fileURLWithPath: url.standardizedFileURL.path, isDirectory: true)
     }
 
-    /// Liệt kê + sắp xếp ngoài main thread; huỷ được từ task cha.
-    private nonisolated static func listSorted(_ url: URL, hidden: Bool, sort: FileSort) async throws -> Listing {
-        let work = Task.detached(priority: .userInitiated) { () throws -> Listing in
+    /// Liệt kê + sắp xếp ngoài main thread. Tạo task ngay (không đợi main actor rảnh): lúc mở cửa sổ mới
+    /// main còn bận dựng giao diện ~150 ms, việc đọc thư mục chạy song song với khoảng đó.
+    private nonisolated static func listingTask(_ url: URL, hidden: Bool, sort: FileSort) -> Task<Listing, Error> {
+        Task.detached(priority: .userInitiated) { () throws -> Listing in
+            let t0 = DispatchTime.now().uptimeNanoseconds
             let raw = try await DirectoryLister.list(url, showHidden: hidden)
             try Task.checkCancellation()
+            let t1 = DispatchTime.now().uptimeNanoseconds
             let sorted = sort.sorted(raw)
+            if perfLog {
+                let t2 = DispatchTime.now().uptimeNanoseconds
+                FileHandle.standardError.write(Data(String(format: "[Pinax perf]   list %.1f ms, sort %.1f ms\n",
+                    Double(t1 - t0) / 1e6, Double(t2 - t1) / 1e6).utf8))
+            }
             let cap = (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
                 .volumeAvailableCapacityForImportantUsage
             return Listing(items: sorted, available: cap, sort: sort)
         }
-        return try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
     }
 
     private func beginLoad(reset: Bool) {
         listTask?.cancel()
         isLoading = true
-        let url = folder, hidden = prefs.showHidden, sort = prefs.sort
+        let url = folder
+        let work = Self.listingTask(url, hidden: prefs.showHidden, sort: prefs.sort)
         listTask = Task { [weak self] in
             let result: Result<Listing, Error>
-            do { result = .success(try await Self.listSorted(url, hidden: hidden, sort: sort)) } catch { result = .failure(error) }
+            do {
+                result = .success(try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() })
+            } catch { result = .failure(error) }
             guard let self, !Task.isCancelled, self.folder.path == url.path else { return }
+            self.perfMark("listing back on main")
             self.finish(result, reset: reset)
         }
+    }
+
+    func perfMark(_ label: String) {
+        guard let start = navStart else { return }
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        FileHandle.standardError.write(Data(String(format: "[Pinax perf]   %@ %.1f ms\n", label, ms).utf8))
     }
 
     private func finish(_ result: Result<Listing, Error>, reset: Bool) {

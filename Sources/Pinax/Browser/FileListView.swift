@@ -183,14 +183,12 @@ struct FileListView: NSViewRepresentable {
                     lastReveal = revealToken
                     if let first = rows.first { table.scrollRowToVisible(first) }
                 }
-                #if DEBUG
                 if let start = model.navStart {
                     model.navStart = nil
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
                     FileHandle.standardError.write(Data(String(
                         format: "[Pinax perf] %d items: navigation start -> table reload %.1f ms\n", items.count, ms).utf8))
                 }
-                #endif
                 if !didInitialFocus, !items.isEmpty, !pathEditing {
                     didInitialFocus = true
                     table.window?.makeFirstResponder(table)

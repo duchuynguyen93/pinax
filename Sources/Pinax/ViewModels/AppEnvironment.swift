@@ -9,7 +9,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .smartClean: L("Smart Clean", "Dọn dẹp thông minh")
-        case .downloads: L("Downloads", "Downloads")
+        case .downloads: L("Tidy Downloads", "Sắp xếp Downloads")
         case .history: L("History", "Lịch sử")
         }
     }
