@@ -13,6 +13,8 @@ PINAX_SMOKE=1 swift test          # opt-in: read-only scan of the real home
 PINAX_REAL_TRASH_QA=1 swift test  # opt-in: real Trash, only files it creates (pinax-qa-*)
 PINAX_PERF=1 swift test           # opt-in: 10k-file listing benchmark
 PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window opens <dir>, no window restoration
+PINAX_QA_TRANSFER=<srcPath>:<destDir> Pinax.app/Contents/MacOS/Pinax   # QA: enqueue a copy of srcPath into destDir ~1s after the first window opens
+PINAX_QA_NOCLONE=1                # QA: transfers use real copyfile instead of APFS clone (to see progress)
 PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```
 

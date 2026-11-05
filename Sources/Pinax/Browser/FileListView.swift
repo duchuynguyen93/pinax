@@ -24,14 +24,27 @@ enum BrowserKeys {
 }
 
 /// NSTableView có context menu.
-final class BrowserTableView: NSTableView {
+final class BrowserTableView: NSTableView, NSMenuItemValidation {
     var menuProvider: ((NSEvent) -> NSMenu?)?
+    weak var model: BrowserModel?
     /// Phím riêng của trình duyệt (Space, ⌘↓); trả true nếu đã xử lý.
     var keyHandler: ((NSEvent) -> Bool)?
 
     override func keyDown(with event: NSEvent) {
         if keyHandler?(event) == true { return }
         super.keyDown(with: event)
+    }
+
+    // ⌘C / ⌘V của menu Edit đi qua responder chain tới đây; ô chữ đang gõ giữ ⌘C / ⌘V của nó.
+    @objc func copy(_ sender: Any?) { model?.copySelectionToPasteboard() }
+    @objc func paste(_ sender: Any?) { model?.pasteFromPasteboard(move: false) }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(copy(_:)): model?.canCopySelection ?? false
+        case #selector(paste(_:)): model?.canPaste ?? false
+        default: true
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -109,6 +122,7 @@ struct FileListView: NSViewRepresentable {
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         c.table = table
+        table.model = model
         table.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
         table.keyHandler = { [weak c] event in
             guard let c else { return false }
@@ -126,6 +140,7 @@ struct FileListView: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let c = context.coordinator
         c.model = model
+        c.table?.model = model
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
                sort: sort, pathEditing: pathEditing, renameToken: renameToken)
     }

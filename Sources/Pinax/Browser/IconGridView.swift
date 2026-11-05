@@ -3,8 +3,9 @@ import AppKit
 import PinaxCore
 
 /// NSCollectionView có double-click, phím tắt trình duyệt, type-to-select và chỗ gắn context menu.
-final class BrowserCollectionView: NSCollectionView {
+final class BrowserCollectionView: NSCollectionView, NSMenuItemValidation {
     var menuProvider: ((NSEvent) -> NSMenu?)?
+    weak var model: BrowserModel?
     var keyHandler: ((NSEvent) -> Bool)?
     var onOpen: (() -> Void)?
     var onTypeSelect: ((String) -> Void)?
@@ -32,6 +33,18 @@ final class BrowserCollectionView: NSCollectionView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    // ⌘C / ⌘V của menu Edit đi qua responder chain tới đây; ô chữ đang gõ giữ ⌘C / ⌘V của nó.
+    @objc func copy(_ sender: Any?) { model?.copySelectionToPasteboard() }
+    @objc func paste(_ sender: Any?) { model?.pasteFromPasteboard(move: false) }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(copy(_:)): model?.canCopySelection ?? false
+        case #selector(paste(_:)): model?.canPaste ?? false
+        default: true
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -142,6 +155,7 @@ struct IconGridView: NSViewRepresentable {
         collection.keyHandler = { [weak c] e in c.map { BrowserKeys.handle(e, model: $0.model) } ?? false }
         collection.onOpen = { [weak c] in c?.model.openSelection() }
         collection.onTypeSelect = { [weak c] s in c?.typeSelect(s) }
+        collection.model = model
         collection.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
 
         let scroll = NSScrollView()
@@ -157,6 +171,7 @@ struct IconGridView: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let c = context.coordinator
         c.model = model
+        c.collection?.model = model
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
                iconSize: iconSize, pathEditing: pathEditing, renameToken: renameToken)
     }

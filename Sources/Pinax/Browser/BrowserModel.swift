@@ -26,6 +26,7 @@ final class BrowserModel {
     let prefs: BrowserPrefs
     let toast: ToastModel
     let history: HistoryModel
+    let transfers: TransferQueue
     let home: URL
     /// Git ở path bar (chỉ đọc).
     let git = GitStatusModel()
@@ -61,6 +62,8 @@ final class BrowserModel {
     private(set) var renameToken = 0
     /// Đường dẫn mục cần đổi tên; view xử lý khi mục đã có trong danh sách rồi xoá.
     @ObservationIgnored var pendingRename: String?
+    /// Mục vừa chép / nhân bản cần chọn ngay khi chúng xuất hiện trong danh sách (watcher nạp lại sau job).
+    @ObservationIgnored var pendingSelect: Set<String> = []
     @ObservationIgnored weak var window: NSWindow?
     /// Kích thước thư mục tính nền, dùng chung cho list và icon view.
     @ObservationIgnored let folderSizes = FolderSizeStore()
@@ -77,10 +80,11 @@ final class BrowserModel {
     /// PINAX_PERF_LOG=1: in thời gian từ lúc điều hướng tới lúc bảng nạp xong ra stderr (cả bản release).
     static let perfLog = ProcessInfo.processInfo.environment["PINAX_PERF_LOG"] == "1"
 
-    init(prefs: BrowserPrefs, toast: ToastModel, history: HistoryModel, home: URL) {
+    init(prefs: BrowserPrefs, toast: ToastModel, history: HistoryModel, transfers: TransferQueue, home: URL) {
         self.prefs = prefs
         self.toast = toast
         self.history = history
+        self.transfers = transfers
         self.home = home
         folder = FileManager.default.homeDirectoryForCurrentUser
         let ud = UserDefaults.standard
@@ -172,6 +176,7 @@ final class BrowserModel {
         folderSizes.cancelAll()
         quickLookURL = nil
         pendingRename = nil
+        pendingSelect = []
         folder = target
         selection = select.map { [$0] } ?? []
         if select != nil { revealToken += 1 }
@@ -317,7 +322,14 @@ final class BrowserModel {
             items = listing.items
             availableBytes = listing.available
             error = nil
-            selection.formIntersection(Set(listing.items.map { $0.url.path }))
+            let listed = Set(listing.items.map { $0.url.path })
+            selection.formIntersection(listed)
+            let hit = pendingSelect.intersection(listed)
+            if !hit.isEmpty {
+                selection = hit
+                pendingSelect = []
+                revealToken += 1
+            }
             folderSizes.request(listing.items)
             if listing.sort != prefs.sort { resort() }
         case .failure(let err):

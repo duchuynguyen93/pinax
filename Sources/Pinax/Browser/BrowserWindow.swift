@@ -23,7 +23,7 @@ struct BrowserRoot: View {
 
     init(seed: BrowserSeed, env: AppEnvironment) {
         self.seed = seed
-        _model = State(initialValue: BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, home: env.settings.home))
+        _model = State(initialValue: BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, transfers: env.transfers, home: env.settings.home))
     }
 
     var body: some View {
@@ -37,7 +37,10 @@ struct BrowserRoot: View {
                 window.tabbingMode = .automatic
                 if seed.asTab { TabRequest.attach(window) }
             })
-            .task { model.start(path: initialPath()) }
+            .task {
+                model.start(path: initialPath())
+                await runQATransfer()
+            }
             .onChange(of: model.folder) {
                 storedPath = model.folder.path
                 env.prefs.rememberFolder(model.folder)
@@ -55,6 +58,23 @@ struct BrowserRoot: View {
         if !storedPath.isEmpty { return storedPath }
         if let p = seed.path { return p }
         return env.prefs.lastFolder ?? env.settings.home.path
+    }
+
+    /// PINAX_QA_TRANSFER=<nguồn>:<thư mục đích> (QA): chép nguồn vào đích một lần, khi cửa sổ đầu tiên đã mở.
+    private func runQATransfer() async {
+        guard let (src, dest) = Self.takeQATransfer() else { return }
+        try? await Task.sleep(for: .seconds(1))
+        env.transfers.enqueue(sources: [URL(fileURLWithPath: src)], destination: URL(fileURLWithPath: dest, isDirectory: true),
+                              kind: .copy, window: model.window)
+    }
+
+    @MainActor private static var qaTransferConsumed = false
+    @MainActor private static func takeQATransfer() -> (String, String)? {
+        guard !qaTransferConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_TRANSFER"] else { return nil }
+        qaTransferConsumed = true
+        let parts = v.components(separatedBy: ":")
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        return (parts[0], parts[1])
     }
 
     @MainActor private static var qaOpenConsumed = false
@@ -156,6 +176,7 @@ struct BrowserContent: View {
                 }
             }
             .overlay { stateOverlay }
+            TransferStrip()
             Divider()
             StatusBar(model: model)
         }

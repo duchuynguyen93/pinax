@@ -34,11 +34,13 @@ final class AppEnvironment {
     let prefs = BrowserPrefs()
     let favorites = FavoritesModel()
     let volumes: VolumesModel
+    let transfers: TransferQueue
 
     init() {
         let history = HistoryModel(store: JournalStore())
         self.history = history
         volumes = VolumesModel(toast: toast)
+        transfers = TransferQueue(history: history, toast: toast) { [settings] in settings.home }
         smart = SmartCleanModel(settings: settings, history: history, toast: toast)
         tidy = TidyModel(settings: settings, history: history, toast: toast)
         toast.undoHandler = { [weak self] batch in self?.undo(batch) }

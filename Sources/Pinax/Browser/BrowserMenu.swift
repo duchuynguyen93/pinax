@@ -40,10 +40,22 @@ enum BrowserMenu {
         menu.addItem(ActionMenuItem(L("New Folder", "Thư mục mới"), key: "n", mask: [.command, .shift],
                                     enabled: model.canCreateFolderHere) { model.newFolder() })
         if !items.isEmpty {
+            menu.addItem(ActionMenuItem(L("Duplicate", "Nhân bản"), key: "d", mask: .command,
+                                        enabled: model.canDuplicateSelection) { model.duplicateSelection() })
             menu.addItem(ActionMenuItem(L("Move to Trash", "Chuyển vào Thùng rác"), key: "\u{8}", mask: .command,
                                         enabled: model.canTrashSelection) { model.trashSelection() })
         }
         menu.addItem(.separator())
+        if !items.isEmpty {
+            menu.addItem(ActionMenuItem(L("Copy", "Chép"), key: "c", mask: .command,
+                                        enabled: model.canCopySelection) { model.copySelectionToPasteboard() })
+        }
+        let n = model.pasteboardFileCount
+        let pasteTitle = n == 0 ? L("Paste", "Dán")
+            : n == 1 ? L("Paste Item", "Dán mục") : L("Paste \(n) Items", "Dán \(n) mục")
+        menu.addItem(ActionMenuItem(pasteTitle, key: "v", mask: .command, enabled: model.canPaste) {
+            model.pasteFromPasteboard(move: false)
+        })
         menu.addItem(ActionMenuItem(L("Copy Path", "Chép đường dẫn"), key: "c", mask: [.option, .command]) { model.copyPath() })
         menu.addItem(ActionMenuItem(L("Show in Finder", "Hiện trong Finder")) { model.showInFinder() })
         menu.addItem(.separator())

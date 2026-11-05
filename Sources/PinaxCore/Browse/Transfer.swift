@@ -171,21 +171,29 @@ enum CopyFile {
                 let state = copyfile_state_alloc()
                 defer { copyfile_state_free(state) }
 
-                let callback: copyfile_callback_t = { what, stage, state, _, _, ctx in
+                // Chép đệ quy: COPY_DATA chỉ báo byte của file hiện tại (có khi không báo với file nhỏ),
+                // nên khi một file xong (RECURSE_FILE/FINISH) cộng nốt phần còn thiếu theo kích thước thật rồi đặt lại bộ đếm.
+                let callback: copyfile_callback_t = { what, stage, state, src, _, ctx in
                     guard let ctx else { return Int32(COPYFILE_CONTINUE) }
                     let box = Unmanaged<Box>.fromOpaque(ctx).takeUnretainedValue()
                     if box.isCancelled() { box.cancelled = true; return Int32(COPYFILE_QUIT) }
-                    if what == COPYFILE_COPY_DATA {
+                    if stage == COPYFILE_ERR { return Int32(COPYFILE_QUIT) }
+                    if what == COPYFILE_COPY_DATA, stage == COPYFILE_PROGRESS || stage == COPYFILE_FINISH {
+                        var copied: off_t = 0
+                        copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &copied)
+                        let c = Int64(copied)
+                        if c > box.lastCopied { box.progress(c - box.lastCopied); box.lastCopied = c }
+                    } else if what == COPYFILE_RECURSE_FILE {
                         if stage == COPYFILE_START {
                             box.lastCopied = 0
-                        } else if stage == COPYFILE_PROGRESS || stage == COPYFILE_FINISH {
-                            var copied: off_t = 0
-                            copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &copied)
-                            let c = Int64(copied)
-                            if c > box.lastCopied { box.progress(c - box.lastCopied); box.lastCopied = c }
+                        } else if stage == COPYFILE_FINISH {
+                            var st = stat()
+                            if let src, lstat(src, &st) == 0, Int64(st.st_size) > box.lastCopied {
+                                box.progress(Int64(st.st_size) - box.lastCopied)
+                            }
+                            box.lastCopied = 0
                         }
                     }
-                    if stage == COPYFILE_ERR { return Int32(COPYFILE_QUIT) }
                     return Int32(COPYFILE_CONTINUE)
                 }
                 let ctx = Unmanaged.passUnretained(box).toOpaque()

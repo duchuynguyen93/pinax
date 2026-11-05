@@ -25,6 +25,7 @@ struct PinaxApp: App {
                 .environment(env.toast)
                 .environment(env.favorites)
                 .environment(env.volumes)
+                .environment(env.transfers)
         } defaultValue: {
             BrowserSeed()
         }
@@ -80,6 +81,12 @@ struct PinaxCommands: Commands {
                 .disabled(browser?.canCreateFolderHere != true)
             Button(L("Rename", "Đổi tên")) { browser?.beginRenameSelection() }
                 .disabled(browser?.canRenameSelection != true)
+            Button(L("Duplicate", "Nhân bản")) {
+                if NSApp.currentEvent?.type == .keyDown, TextEditing.isEditing { return }
+                browser?.duplicateSelection()
+            }
+            .keyboardShortcut("d", modifiers: .command)
+            .disabled(browser?.canDuplicateSelection != true)
             Button(L("Move to Trash", "Chuyển vào Thùng rác")) { browser?.trashSelection() }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .disabled(browser?.canTrashSelection != true)
@@ -103,6 +110,13 @@ struct PinaxCommands: Commands {
             .disabled(!env.tidy.canTidy)
         }
         CommandGroup(after: .pasteboard) {
+            Button(L("Move Item Here", "Chuyển mục vào đây")) {
+                // ⌥⌘V khi đang gõ chữ: không chuyển file.
+                if NSApp.currentEvent?.type == .keyDown, TextEditing.isEditing { return }
+                browser?.pasteFromPasteboard(move: true)
+            }
+            .keyboardShortcut("v", modifiers: [.option, .command])
+            .disabled(browser?.canPaste != true)
             Button(L("Copy Path", "Chép đường dẫn")) { browser?.copyPath() }
                 .keyboardShortcut("c", modifiers: [.option, .command])
                 .disabled(browser == nil || browser?.pinax != nil)
@@ -151,6 +165,9 @@ struct PinaxCommands: Commands {
 
 /// Phím tắt của menu chạy trước ô chữ; khi một ô chữ đang được gõ thì chuyển lệnh cho nó.
 @MainActor enum TextEditing {
+    /// Đang có ô chữ được gõ trong cửa sổ chính.
+    static var isEditing: Bool { NSApp.keyWindow?.firstResponder is NSTextView }
+
     /// Gửi `action` cho ô chữ đang gõ. false nếu không có ô nào đang gõ.
     @discardableResult
     static func forward(_ action: Selector) -> Bool {

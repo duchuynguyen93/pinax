@@ -136,6 +136,17 @@ import Foundation
         #expect(read(dest.appendingPathComponent("big.bin"))?.count == 3_000_000)
     }
 
+    /// Chép đệ quy nhiều file nhỏ: byte báo về phải cộng dồn đủ (không kẹt ở file đầu).
+    @Test func folderCopyProgressCountsEveryFile() throws {
+        let folder = box.downloads.appendingPathComponent("many", isDirectory: true)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        for i in 0..<50 { _ = try box.write("f\(i).txt", in: folder, bytes: 1_000) }
+        var copied: Int64 = 0
+        try CopyFile.copy(from: folder, to: dest.appendingPathComponent("many"), allowClone: false,
+                          progress: { copied += $0 }, isCancelled: { false })
+        #expect(copied == 50_000)
+    }
+
     @Test func undoCopyTrashesCreated() throws {
         let f = try box.write("a.txt")
         let r = run([f])
