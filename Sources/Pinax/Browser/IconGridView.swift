@@ -156,6 +156,10 @@ struct IconGridView: NSViewRepresentable {
         collection.onOpen = { [weak c] in c?.model.openSelection() }
         collection.onTypeSelect = { [weak c] s in c?.typeSelect(s) }
         collection.model = model
+        // Kéo thả: nguồn kéo cho phép chép / chuyển; thả lên ô thư mục hoặc chỗ trống.
+        collection.registerForDraggedTypes([.fileURL])
+        collection.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
+        collection.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: false)
         collection.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
 
         let scroll = NSScrollView()
@@ -382,6 +386,47 @@ struct IconGridView: NSViewRepresentable {
         }
 
         // MARK: Delegate
+
+        // MARK: Kéo thả
+
+        /// Không bắt đầu kéo khi đang đổi tên.
+        func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
+            guard editing == nil, indexPath.item < items.count else { return nil }
+            return items[indexPath.item].url as NSURL
+        }
+
+        func collectionView(_ collectionView: NSCollectionView, validateDrop draggingInfo: NSDraggingInfo,
+                            proposedIndexPath proposedDropIndexPath: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
+                            dropOperation proposedDropOperation: UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
+            let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
+            let i = proposedDropIndexPath.pointee.item
+            var dest = model.folder
+            if proposedDropOperation.pointee == .on, i >= 0, i < items.count, items[i].isNavigableFolder,
+               !sources.contains(where: { $0.standardizedFileURL.path == items[i].url.standardizedFileURL.path }) {
+                dest = items[i].url
+            } else {
+                // Thả vào chỗ khác → thư mục đang xem; đưa vạch chèn về cuối.
+                proposedDropOperation.pointee = .before
+                proposedDropIndexPath.pointee = IndexPath(item: items.count, section: 0) as NSIndexPath
+            }
+            guard model.pinax == nil,
+                  let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
+            else { return [] }
+            return kind == .move ? .move : .copy
+        }
+
+        func collectionView(_ collectionView: NSCollectionView, acceptDrop draggingInfo: NSDraggingInfo,
+                            indexPath: IndexPath, dropOperation: NSCollectionView.DropOperation) -> Bool {
+            let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
+            var dest = model.folder
+            if dropOperation == .on, indexPath.item < items.count, items[indexPath.item].isNavigableFolder {
+                dest = items[indexPath.item].url
+            }
+            guard let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
+            else { return false }
+            model.performDrop(sources: sources, destination: dest, kind: kind)
+            return true
+        }
 
         func collectionView(_ collectionView: NSCollectionView, didSelectItemsAt indexPaths: Set<IndexPath>) { publishSelection() }
         func collectionView(_ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>) { publishSelection() }

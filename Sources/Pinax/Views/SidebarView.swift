@@ -12,6 +12,8 @@ struct SidebarView: View {
     let model: BrowserModel
     @Environment(FavoritesModel.self) private var favorites
     @Environment(VolumesModel.self) private var volumes
+    /// Favorite đang được rê file tới (để tô sáng).
+    @State private var dropTarget: URL?
 
     private var selection: Binding<SidebarItem?> {
         Binding(
@@ -40,6 +42,10 @@ struct SidebarView: View {
                         Image(systemName: Self.symbol(for: url))
                     }
                     .tag(SidebarItem.favorite(url))
+                    .listRowBackground(dropTarget == url ? Color.accentColor.opacity(0.3) : nil)
+                    .dropDestination(for: URL.self) { urls, _ in drop(urls, onto: url) } isTargeted: { on in
+                        if on { dropTarget = url } else if dropTarget == url { dropTarget = nil }
+                    }
                     .contextMenu {
                         Button(L("Remove from Favorites", "Bỏ khỏi Yêu thích")) { favorites.remove(url) }
                         addCurrentButton
@@ -70,6 +76,15 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .contextMenu { addCurrentButton }
+    }
+
+    /// Thả file lên Favorite: ⌥ = chép, ⌘ = chuyển, mặc định theo ổ đĩa. Qua TransferQueue.
+    private func drop(_ urls: [URL], onto dest: URL) -> Bool {
+        let flags = NSEvent.modifierFlags
+        let mask: NSDragOperation = flags.contains(.option) ? [.copy] : flags.contains(.command) ? [.move] : [.copy, .move, .generic]
+        guard let kind = model.dropKind(sources: urls.filter(\.isFileURL), destination: dest, mask: mask) else { return false }
+        model.performDrop(sources: urls.filter(\.isFileURL), destination: dest, kind: kind)
+        return true
     }
 
     private var addCurrentButton: some View {

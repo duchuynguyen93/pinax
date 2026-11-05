@@ -98,6 +98,10 @@ struct FileListView: NSViewRepresentable {
         table.delegate = c
         table.target = c
         table.doubleAction = #selector(Coordinator.doubleClicked(_:))
+        // Kéo thả: nguồn kéo cho phép chép / chuyển; thả vào hàng thư mục hoặc cả bảng.
+        table.registerForDraggedTypes([.fileURL])
+        table.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
+        table.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: false)
 
         func column(_ id: String, _ title: String, width: CGFloat, min: CGFloat, key: FileSort.Key) -> NSTableColumn {
             let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
@@ -354,6 +358,42 @@ struct FileListView: NSViewRepresentable {
             f.locale = Loc.lang == .vi ? Locale(identifier: "vi_VN") : Locale(identifier: "en_US")
             formatter = (Loc.lang, f)
             return f
+        }
+
+        // MARK: Kéo thả
+
+        /// Không bắt đầu kéo khi đang đổi tên; chọn nhiều thì AppKit kéo cả các hàng đang chọn.
+        func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+            guard editing == nil, row < items.count else { return nil }
+            return items[row].url as NSURL
+        }
+
+        func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo,
+                       proposedRow row: Int, proposedDropOperation op: NSTableView.DropOperation) -> NSDragOperation {
+            let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
+            var dest = model.folder
+            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder,
+               !sources.contains(where: { $0.standardizedFileURL.path == items[row].url.standardizedFileURL.path }) {
+                dest = items[row].url
+            } else {
+                // Thả vào chỗ khác → cả bảng = thư mục đang xem.
+                tableView.setDropRow(-1, dropOperation: .on)
+            }
+            guard model.pinax == nil,
+                  let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
+            else { return [] }
+            return kind == .move ? .move : .copy
+        }
+
+        func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo,
+                       row: Int, dropOperation op: NSTableView.DropOperation) -> Bool {
+            let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
+            var dest = model.folder
+            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder { dest = items[row].url }
+            guard let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
+            else { return false }
+            model.performDrop(sources: sources, destination: dest, kind: kind)
+            return true
         }
 
         // MARK: Delegate

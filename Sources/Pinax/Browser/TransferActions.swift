@@ -3,7 +3,7 @@ import PinaxCore
 
 /// Clipboard + nhân bản của trình duyệt: mọi thứ đi qua `TransferQueue` → `TransferRunner` (PathGuard, journal, hoàn tác).
 extension BrowserModel {
-    private static let fileURLOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+    static let fileURLOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
 
     // MARK: Điều kiện bật / tắt
 
@@ -45,8 +45,8 @@ extension BrowserModel {
         enqueueTransfer(selectedItems.map(\.url), kind: .duplicate)
     }
 
-    private func enqueueTransfer(_ urls: [URL], kind: TransferKind) {
-        let dest = folder
+    private func enqueueTransfer(_ urls: [URL], kind: TransferKind, to dest: URL? = nil) {
+        let dest = dest ?? folder
         transfers.enqueue(sources: urls, destination: dest, kind: kind, window: window ?? NSApp.keyWindow) { [weak self] created in
             self?.selectCreated(created, in: dest)
         }
@@ -61,5 +61,52 @@ extension BrowserModel {
         guard !paths.isEmpty else { return }
         pendingSelect = paths
         reload()
+    }
+
+    // MARK: Kéo thả
+
+    /// File URL trên một pasteboard kéo thả.
+    static func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        (pasteboard.readObjects(forClasses: [NSURL.self], options: fileURLOptions) as? [URL]) ?? []
+    }
+
+    /// Kiểu thao tác cho một cú thả (như Finder: ⌥ = chép, ⌘ = chuyển, mặc định theo ổ đĩa). nil = từ chối.
+    func dropKind(sources: [URL], destination: URL, mask: NSDragOperation) -> TransferKind? {
+        let dest = destination.standardizedFileURL.path
+        let paths = sources.map { $0.standardizedFileURL.path }
+        guard !sources.isEmpty, fileOps.canCreateFolder(in: destination),
+              !paths.allSatisfy({ $0 == dest }) else { return nil }
+        // Không thả thư mục vào chính nó / con của nó.
+        if paths.contains(where: { dest.hasPrefix($0 + "/") }) { return nil }
+
+        let canCopy = mask.contains(.copy) || mask.contains(.generic)
+        let canMove = mask.contains(.move) || mask.contains(.generic)
+        var kind: TransferKind
+        if mask == [.copy] {
+            kind = .copy
+        } else if mask == [.move] || (mask.contains(.generic) && !mask.contains(.copy)) {
+            kind = .move
+        } else {
+            kind = TransferPlan.sameVolume(sources[0], destination) ? .move : .copy
+        }
+        if kind == .move, !sources.allSatisfy({ fileOps.canModify($0) }) { kind = .copy }
+        // Nguồn kéo không cho phép kiểu đã chọn thì thử kiểu còn lại.
+        if kind == .copy, !canCopy { kind = .move }
+        else if kind == .move, !canMove { kind = .copy }
+        switch kind {
+        case .copy: guard canCopy else { return nil }
+        case .move:
+            guard canMove, sources.allSatisfy({ fileOps.canModify($0) }) else { return nil }
+            // Mọi nguồn đã nằm sẵn trong đích → không có gì để chuyển.
+            if sources.allSatisfy({ $0.deletingLastPathComponent().standardizedFileURL.path == dest }) { return nil }
+        default: return nil
+        }
+        return kind
+    }
+
+    /// Thả file vào `destination`; xếp hàng qua TransferQueue (hỏi trùng tên, journal, hoàn tác).
+    /// Kéo sang Finder/app khác thì Finder tự làm, không qua journal của Pinax.
+    func performDrop(sources: [URL], destination: URL, kind: TransferKind) {
+        enqueueTransfer(sources, kind: kind, to: destination)
     }
 }
