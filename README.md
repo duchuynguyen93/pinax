@@ -4,10 +4,11 @@
 
 Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk clutter and tidies your Downloads folder. It never deletes anything: every removal is a move to the Trash, and every batch can be undone from the built-in history. Later milestones will grow it into a Finder companion with its own file browser.
 
-> Version 0.1.1 (M1). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
+> Version 0.2.0 (M2). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
 
 ## Features
 
+- **File browser**: list and icon views, Quick Look, Go to Path with Tab completion, tabs, folder sizes, and a git-aware path bar (branch, ahead/behind, changes). New Folder, Rename and Move to Trash go through the same journal, so Cmd+Z undoes them. Open it from anywhere with Option+Cmd+P, Finder Services, Open With or `pinax://open?path=`.
 - **Smart Clean**: scans your Mac and groups findings into "Safe to clear" and "Your call". Nine rules:
   developer caches, stale developer data, duplicate files, used installers, Mail attachment copies,
   large files, apps you have not opened, old screen recordings, old downloads.
@@ -57,7 +58,7 @@ The version lives in the [`VERSION`](VERSION) file.
 |---|---|---|
 | M1 | Smart Clean, Tidy Downloads, History and Undo, Settings | Done (0.1.0) |
 | M1.5 | Leftovers of deleted apps, Empty Trash, Quick Look in lists | Planned |
-| M2 | File browser, git-aware path bar, open in Terminal/Editor, global hotkey / Services / Open With entry points | In progress |
+| M2 | File browser, git-aware path bar, open in Terminal/Editor, global hotkey / Services / Open With / `pinax://` entry points (macOS 27 refuses third-party default folder viewers) | Done (0.2.0) |
 | M3 | Workspaces, dual pane, copy queue, Finder cut/paste interop | Planned |
 
 ## Documentation

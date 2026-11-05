@@ -57,9 +57,16 @@ struct PinaxCommands: Commands {
         // để OpenRouter mở cửa sổ cho lần mở từ ngoài lúc khởi động nguội.
         let _ = OpenRouter.shared.connect(env: env, openWindow: openWindow)
         CommandGroup(replacing: .undoRedo) {
-            Button(L("Undo Last Batch", "Hoàn tác lần dọn gần nhất")) { env.undoLatest() }
-                .keyboardShortcut("z", modifiers: .command)
-                .disabled(env.history.latestUndoable == nil || env.history.isUndoing)
+            // Luôn bật: đang gõ chữ (đổi tên, ⌘L) thì ⌘Z / ⇧⌘Z thuộc về ô chữ, không được hoàn tác thao tác file.
+            Button(L("Undo", "Hoàn tác")) {
+                if TextEditing.forward(Selector(("undo:"))) { return }
+                if env.history.latestUndoable != nil, !env.history.isUndoing { env.undoLatest() } else { NSSound.beep() }
+            }
+            .keyboardShortcut("z", modifiers: .command)
+            Button(L("Redo", "Làm lại")) {
+                if !TextEditing.forward(Selector(("redo:"))) { NSSound.beep() }
+            }
+            .keyboardShortcut("z", modifiers: [.shift, .command])
         }
         CommandGroup(after: .newItem) {
             Button(L("New Tab", "Tab mới")) { newTab() }
@@ -139,5 +146,16 @@ struct PinaxCommands: Commands {
     private func newTab() {
         TabRequest.prepare()
         openWindow(value: BrowserSeed(path: browser?.folder.path, asTab: true))
+    }
+}
+
+/// Phím tắt của menu chạy trước ô chữ; khi một ô chữ đang được gõ thì chuyển lệnh cho nó.
+@MainActor enum TextEditing {
+    /// Gửi `action` cho ô chữ đang gõ. false nếu không có ô nào đang gõ.
+    @discardableResult
+    static func forward(_ action: Selector) -> Bool {
+        guard let tv = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
+        NSApp.sendAction(action, to: tv, from: nil)
+        return true
     }
 }

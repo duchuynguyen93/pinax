@@ -11,12 +11,15 @@ swift test                        # core tests
 ./build.sh dmg                    # dist/Pinax-<version>-arm64.dmg, .zip, SHA256SUMS.txt
 PINAX_SMOKE=1 swift test          # opt-in: read-only scan of the real home
 PINAX_REAL_TRASH_QA=1 swift test  # opt-in: real Trash, only files it creates (pinax-qa-*)
+PINAX_PERF=1 swift test           # opt-in: 10k-file listing benchmark
+PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window opens <dir>, no window restoration
+PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```
 
 ## Repo map
 
-- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions.
-- `Sources/Pinax/` SwiftUI: ViewModels, Views, `Loc.swift`/`Texts.swift` for bilingual strings.
+- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions, Browse (DirectoryLister, FileItem, FileSort, FileOps, GitStatus, PathCompletion, DirectoryWatcher).
+- `Sources/Pinax/` SwiftUI: Browser (window, list/icon views, path bar, thumbnails, context menu), Integration (OpenRouter for Open With / `pinax://` / Services, HotKey, ExternalApps), ViewModels, Views, `Loc.swift`/`Texts.swift` for bilingual strings.
 - `Tests/PinaxCoreTests/` Swift Testing suites.
 - `docs/ARCHITECTURE.md` design; `docs/plans/` one plan per milestone.
 - `build.sh`, `VERSION`, `CHANGELOG.md`, `GUIDE.md`, `CONTRIBUTING.md`.
@@ -51,5 +54,6 @@ Full contract: `docs/ARCHITECTURE.md#safety-contract`. Never break:
 
 - Add Empty Trash or any irreversible action without an explicit design in `docs/plans/`.
 - Try to register Pinax as the default folder viewer (`public.folder` default handler, `NSFileViewer`): macOS 27 refuses it, see `docs/plans/M2-file-browser.md` §0.
+- Drive the UI with synthetic keystrokes or clicks (cliclick, AppleScript `key code`): focus can move and the keys land in another app. Screenshot with `screencapture -l <windowID>` and ask a human for interactive checks.
 - Commit `dist/`, `.build/` or `Pinax.app`.
 - Change safety behavior without updating tests and the contract.

@@ -1,12 +1,13 @@
 # Pinax User Guide
 
-Pinax finds disk clutter and tidies your Downloads folder. It only ever moves things to the Trash, and you can undo every batch. (Tiếng Việt: see [section 10](#10-tiếng-việt).)
+Pinax is a file browser that also finds disk clutter and tidies your Downloads folder. It only ever moves things to the Trash, and you can undo every batch. (Tiếng Việt: see [section 10](#10-tiếng-việt).)
 
 1. [Install](#1-install)
 2. [First run and permissions](#2-first-run-and-permissions)
 3. [Smart Clean](#3-smart-clean)
 4. [Downloads (Tidy)](#4-downloads-tidy)
 5. [History and Undo](#5-history-and-undo)
+   - [Browsing](#browsing), [File operations](#file-operations), [Opening folders in Pinax](#opening-folders-in-pinax)
 6. [Settings](#6-settings)
 7. [Keyboard shortcuts](#7-keyboard-shortcuts)
 8. [Troubleshooting](#8-troubleshooting)
@@ -119,9 +120,21 @@ Items that could not be restored, or were skipped when moving, tell you why:
 
 An undo of a batch whose items you already took out of the Trash reports them as gone; it never fails the whole batch because of one item.
 
+## Browsing
+
+Pinax opens on a browser window. The sidebar has your Favorites (drag to reorder, right-click to remove; Ctrl+Cmd+T adds the current folder), Locations (disks, with an Eject button for external ones) and the Pinax tools (Smart Clean, Tidy Downloads, History).
+
+- **Views.** Cmd+1 list (click a column header to sort), Cmd+2 icons with thumbnails; Cmd+- / Cmd+= change the icon size. Folder sizes fill in in the background.
+- **Moving around.** Double-click or Cmd+Down opens, Cmd+Up goes to the enclosing folder, Cmd+[ / Cmd+] go back and forward. Click any part of the path bar to jump there.
+- **Go to Path** (Cmd+L): type a path (`~` works), Tab completes (press Tab again to cycle through matches, Shift+Tab backwards), Return goes, Esc cancels. A path to a file opens its folder with the file selected.
+- **Quick Look**: Space on the selection.
+- **Tabs**: Cmd+T for a new tab in the same folder.
+- **Hidden files**: Shift+Cmd+. toggles them.
+- The folder refreshes on its own when files change.
+
 ## File operations
 
-Everything below is journaled, shows up in History and is undone with Cmd+Z (Edit > Undo Last Batch). Nothing is ever deleted permanently.
+Everything below is journaled, shows up in History and is undone with Cmd+Z (Edit > Undo). Nothing is ever deleted permanently.
 
 - **New Folder** (Shift+Cmd+N): creates `untitled folder` (or `untitled folder 2`...) in the current folder, selects it and starts renaming.
 - **Rename** (Return on one selected item, or right-click > Rename): edit in place in the list, or under the icon in icon view. The name without its extension is selected. Return confirms, Esc cancels. A name that already exists is refused and the old name stays.
@@ -141,7 +154,7 @@ macOS 27 does not let a third-party app replace Finder as the default folder vie
 - **Services.** In Finder, right-click a folder (or file) > Services (or Quick Actions) > **Open in Pinax**. If the item is missing, enable it in System Settings > Keyboard > Keyboard Shortcuts > Services > Files and Folders > "Open in Pinax". A new service may need a re-login or `/System/Library/CoreServices/pbs -update` before it shows up.
 - **Open With.** Right-click a folder > Open With > Pinax (it is listed as an alternate, never the default).
 - **Terminal.** `open -a Pinax .` opens the current directory; add `alias pinax='open -a Pinax'` to your shell profile and run `pinax ~/Downloads`.
-- **URL.** `pinax://open?path=%2FUsers%2Fme%2FDownloads` (percent-encode the path) for Raycast, Alfred or Shortcuts. A file opens its folder with the file selected; a missing path opens Home with a notice.
+- **URL.** `pinax://open?path=%2FUsers%2Fme%2FDownloads` (percent-encode the path) for Raycast, Alfred or Shortcuts. Each URL, like each Services or Open With request, opens a new window (as Finder does). A file opens its folder with the file selected; a missing path opens Home with a notice.
 - **Open in Terminal / Editor.** Pick the apps in Settings; then File > Open in Terminal (Option+Shift+Cmd+T) or Open in Editor (Option+Shift+Cmd+E) for the folder in the front window.
 
 Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc định trên macOS 27, nên dùng phím tắt toàn cục (mặc định Option+Cmd+P), Services "Open in Pinax", Mở bằng (Open With), `open -a Pinax .` hoặc `pinax://open?path=…`.
@@ -160,7 +173,13 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 
 | Shortcut | Action |
 |---|---|
-| Cmd+Z | Undo the latest batch (Edit menu: "Undo Last Batch") |
+| Cmd+Z | Undo the latest batch (while typing a name or path it undoes the typing instead) |
+| Cmd+1 / Cmd+2 | List / icon view |
+| Cmd+L | Go to Path (Tab completes) |
+| Cmd+[ / Cmd+] / Cmd+Up | Back / Forward / Enclosing Folder |
+| Space | Quick Look |
+| Cmd+T | New tab |
+| Option+Cmd+P | Bring Pinax to the front from any app (changeable in Settings) |
 | Shift+Cmd+N | New Folder (then rename in place) |
 | Return | Rename the selected item (Esc cancels) |
 | Cmd+Delete | Move the selection to the Trash |
@@ -195,6 +214,8 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 **Dọn dẹp thông minh.** Bấm **Quét**; kết quả chia hai nhóm: *An toàn để dọn* (cache lập trình, bộ cài đã dùng, file đính kèm Mail) và *Tuỳ bạn quyết* (dữ liệu lập trình cũ, file trùng, file lớn, app lâu không mở, bản ghi màn hình cũ, tải xuống đã lâu). Ngưỡng mặc định: cache từ 10 MB; project/DeviceSupport cũ 180 ngày; file trùng từ 1 MB; file lớn 500 MB; app lâu không mở 180 ngày (nếu macOS không biết lần mở cuối thì không bao giờ gắn cờ); bản ghi màn hình 30 ngày; tải xuống 90 ngày. Mục được tick sẵn: cache lập trình, `.dmg`/`.pkg` đã cài, file Mail, và file trùng khi mọi bản đều nằm trong Downloads. Lưu ý: APFS clone có thể khiến dung lượng thu hồi thực tế ít hơn số hiển thị; thư mục đang được dùng (vd DerivedData lúc mở Xcode) có thể bị bỏ qua vì "đã thay đổi từ lúc quét", hãy quét lại. Pinax không bao giờ đổ Thùng rác.
 
 **Sắp xếp Downloads.** Màn **Downloads** xem trước rồi xếp file lẻ cấp 1 vào `Images`, `Videos`, `Audio`, `Documents`, `Archives`, `Installers`, `Code`, `Other`. Bỏ qua file ẩn, thư mục, alias/liên kết, file đang tải dở, file vừa sửa trong 1 phút. Trùng tên thì đổi thành `tên 2.ext`, `tên 3.ext`, không bao giờ ghi đè. Phím tắt **Option+Cmd+T**.
+
+**Trình duyệt file.** Cửa sổ chính là trình duyệt: Cmd+1 dạng danh sách, Cmd+2 dạng lưới; Cmd+L gõ đường dẫn (Tab để hoàn thành); Space để Quick Look; Cmd+T mở tab. Shift+Cmd+N tạo thư mục, Return đổi tên, Cmd+Delete chuyển vào Thùng rác; tất cả đều hoàn tác được bằng Cmd+Z. Trong repo git, thanh đường dẫn hiện nhánh và số thay đổi.
 
 **Lịch sử và Hoàn tác.** Mỗi lần dọn/sắp xếp là một batch, giữ 50 batch gần nhất, còn nguyên sau khi mở lại app. Hoàn tác bằng **Cmd+Z**, nút trên toast hoặc trong màn Lịch sử. Mục bị bỏ qua sẽ có lý do (không còn tồn tại, chỗ cũ đã có file, thư mục không rỗng...).
 

@@ -20,8 +20,6 @@ extension BrowserModel {
         return selectedItems.contains { ops.canModify($0.url) }
     }
 
-    private var isEditingText: Bool { window?.firstResponder is NSTextView }
-
     // MARK: New Folder
 
     func newFolder() {
@@ -77,7 +75,9 @@ extension BrowserModel {
     // MARK: Move to Trash
 
     func trashSelection() {
-        guard canTrashSelection, !isEditingText else { return }
+        // Phím ⌘⌫ trong ô chữ = xoá về đầu dòng (menu nuốt phím này trước khi tới ô chữ). Bấm chuột vào menu vẫn là xoá file.
+        if NSApp.currentEvent?.type == .keyDown, TextEditing.forward(#selector(NSTextView.deleteToBeginningOfLine(_:))) { return }
+        guard canTrashSelection else { return }
         let urls = selectedItems.map(\.url)
         let store = history.store, home = home
         let title = L("Move to Trash: \(itemsText(urls.count))", "Chuyển vào Thùng rác: \(itemsText(urls.count))")
