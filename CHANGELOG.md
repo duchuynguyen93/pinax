@@ -15,7 +15,7 @@ Milestone M3: copy and move without Finder, two panes, workspaces.
 - **Name conflicts** ask once per job: Keep Both (`name 2.ext`), Replace (the old item goes to the Trash, so it is undoable), Skip, or Cancel.
 - **Drag and drop**: drag files out to Finder or other apps; drop files from anywhere onto the list, the icon grid, a folder row or a Favorite. Same disk moves, another disk copies; hold Option to copy, Command to move.
 - **Dual Pane** (View > Dual Pane, Cmd+\\): two folders side by side, each with its own history and selection; Tab switches panes; F5 copies and F6 moves the selection to the other pane. The layout is restored with the window.
-- **Workspaces**: File > Save Window as Workspace (Ctrl+Cmd+S) saves every tab of the window (with dual-pane folders and view mode); open one from the sidebar or with `pinax://workspace?name=...`. Rename, update or delete from the right-click menu; deleting a workspace never touches files.
+- **Workspaces**: File > Save Window as Workspace (Ctrl+Cmd+S) saves every tab of the window (with dual-pane folders and view mode); open one from the sidebar or with `pinax://workspace?name=...`. Rename, update or delete from the right-click menu; deleting a workspace never touches files. Opening a workspace does not change your default view mode.
 
 ### Safety
 - A copy is written under a hidden temporary name and only renamed into place when complete; a cancelled or failed copy is moved to the Trash, never deleted.

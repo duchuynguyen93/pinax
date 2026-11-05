@@ -75,7 +75,7 @@ struct BrowserRoot: View {
                 win.primary.start(path: initialPath())
                 if let (second, right) = initialSecond() { win.openDual(at: second, activeRight: right) }
                 if storedPath.isEmpty || seed.path != nil, let raw = seed.viewMode, let mode = BrowserViewMode(rawValue: raw) {
-                    win.panes.forEach { $0.viewMode = mode }
+                    win.panes.forEach { $0.applyPresetViewMode(mode) }
                 }
                 await runQATransfer()
             }

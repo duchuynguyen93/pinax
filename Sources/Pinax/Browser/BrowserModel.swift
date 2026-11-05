@@ -52,7 +52,15 @@ final class BrowserModel {
         didSet { if pathEditing { onActivate?() } }
     }
     var viewMode: BrowserViewMode {
-        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: Self.viewModeKey) }
+        didSet { if !applyingPreset { UserDefaults.standard.set(viewMode.rawValue, forKey: Self.viewModeKey) } }
+    }
+    @ObservationIgnored private var applyingPreset = false
+
+    /// Kiểu xem đến từ workspace: chỉ áp cho pane này, không đổi mặc định của app.
+    func applyPresetViewMode(_ mode: BrowserViewMode) {
+        applyingPreset = true
+        viewMode = mode
+        applyingPreset = false
     }
     var iconSize: IconSize {
         didSet { UserDefaults.standard.set(iconSize.rawValue, forKey: Self.iconSizeKey) }
