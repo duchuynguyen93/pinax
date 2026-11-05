@@ -47,6 +47,7 @@ struct PinaxApp: App {
 struct PinaxCommands: Commands {
     let env: AppEnvironment
     @FocusedValue(\.browser) private var browser
+    @FocusedValue(\.browserWindow) private var browserWindow
     @Environment(\.openWindow) private var openWindow
     @AppStorage(ExternalApps.terminalKey) private var terminalID = ""
     @AppStorage(ExternalApps.editorKey) private var editorID = ""
@@ -90,6 +91,12 @@ struct PinaxCommands: Commands {
             Button(L("Move to Trash", "Chuyển vào Thùng rác")) { browser?.trashSelection() }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .disabled(browser?.canTrashSelection != true)
+            Button(L("Copy to Other Pane", "Chép sang khung kia")) { transferToOtherPane(.copy) }
+                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF5FunctionKey)!)), modifiers: [])
+                .disabled(!canTransferToOtherPane(.copy))
+            Button(L("Move to Other Pane", "Chuyển sang khung kia")) { transferToOtherPane(.move) }
+                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF6FunctionKey)!)), modifiers: [])
+                .disabled(!canTransferToOtherPane(.move))
             Divider()
             Button(L("Open in Terminal", "Mở trong Terminal")) {
                 if let b = browser, let app = terminalApp { ExternalApps.open(b.folder, with: app) }
@@ -146,6 +153,10 @@ struct PinaxCommands: Commands {
             .disabled(browser == nil || browser?.pinax != nil)
         }
         CommandGroup(after: .toolbar) {
+            Toggle(L("Dual Pane", "Hai khung"), isOn: Binding(
+                get: { browserWindow?.isDual ?? false }, set: { _ in browserWindow?.toggleDual() }))
+                .keyboardShortcut("\\", modifiers: .command)
+                .disabled(browserWindow == nil)
             Toggle(L("Show Hidden Files", "Hiện file ẩn"), isOn: Binding(
                 get: { env.prefs.showHidden }, set: { env.prefs.showHidden = $0 }))
                 .keyboardShortcut(".", modifiers: [.command, .shift])
@@ -156,6 +167,18 @@ struct PinaxCommands: Commands {
 
     private var terminalApp: CatalogApp? { ExternalApps.chosen(ExternalApps.terminals, stored: terminalID) }
     private var editorApp: CatalogApp? { ExternalApps.chosen(ExternalApps.editors, stored: editorID) }
+
+    private func canTransferToOtherPane(_ kind: TransferKind) -> Bool {
+        guard let w = browserWindow else { return false }
+        return w.canTransfer(from: w.active, kind: kind)
+    }
+
+    private func transferToOtherPane(_ kind: TransferKind) {
+        // F5 / F6 khi đang gõ chữ: không chép / chuyển file.
+        if NSApp.currentEvent?.type == .keyDown, TextEditing.isEditing { return }
+        guard let w = browserWindow else { return }
+        w.transfer(from: w.active, kind: kind)
+    }
 
     private func newTab() {
         TabRequest.prepare()

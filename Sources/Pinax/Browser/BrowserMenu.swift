@@ -45,6 +45,16 @@ enum BrowserMenu {
             menu.addItem(ActionMenuItem(L("Move to Trash", "Chuyển vào Thùng rác"), key: "\u{8}", mask: .command,
                                         enabled: model.canTrashSelection) { model.trashSelection() })
         }
+        if !items.isEmpty, let wm = model.windowModel, wm.isDual {
+            menu.addItem(ActionMenuItem(L("Copy to Other Pane", "Chép sang khung kia"), key: fnKey(NSF5FunctionKey),
+                                        enabled: wm.canTransfer(from: model, kind: .copy)) {
+                wm.transfer(from: model, kind: .copy)
+            })
+            menu.addItem(ActionMenuItem(L("Move to Other Pane", "Chuyển sang khung kia"), key: fnKey(NSF6FunctionKey),
+                                        enabled: wm.canTransfer(from: model, kind: .move)) {
+                wm.transfer(from: model, kind: .move)
+            })
+        }
         menu.addItem(.separator())
         if !items.isEmpty {
             menu.addItem(ActionMenuItem(L("Copy", "Chép"), key: "c", mask: .command,
@@ -68,6 +78,8 @@ enum BrowserMenu {
         })
         return menu
     }
+
+    private static func fnKey(_ code: Int) -> String { String(UnicodeScalar(code).map(Character.init) ?? " ") }
 
     /// App mặc định (đánh dấu) trước, rồi các app khác theo tên, cuối cùng "Other…". Lấy danh sách theo mục đầu tiên.
     private static func openWithMenu(for urls: [URL]) -> NSMenu {

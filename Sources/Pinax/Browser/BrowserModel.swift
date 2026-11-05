@@ -48,7 +48,9 @@ final class BrowserModel {
     private(set) var availableBytes: Int64?
     private(set) var backStack: [URL] = []
     private(set) var forwardStack: [URL] = []
-    var pathEditing = false
+    var pathEditing = false {
+        didSet { if pathEditing { onActivate?() } }
+    }
     var viewMode: BrowserViewMode {
         didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: Self.viewModeKey) }
     }
@@ -65,6 +67,14 @@ final class BrowserModel {
     /// Mục vừa chép / nhân bản cần chọn ngay khi chúng xuất hiện trong danh sách (watcher nạp lại sau job).
     @ObservationIgnored var pendingSelect: Set<String> = []
     @ObservationIgnored weak var window: NSWindow?
+    /// Cửa sổ chứa pane này (nil khi chưa gắn); dùng cho dual pane.
+    @ObservationIgnored weak var windowModel: WindowModel?
+    /// Pane này vừa được chọn làm pane active (focus bảng, bấm path bar, ⌘L...). WindowModel gắn vào.
+    @ObservationIgnored var onActivate: (() -> Void)?
+    /// Tab / ⇧Tab trong bảng khi đang dual → chuyển sang pane kia.
+    @ObservationIgnored var onSwitchPane: (() -> Void)?
+    /// Bảng / lưới đang hiển thị của pane (list hoặc icon view đặt vào), để chuyển focus tới.
+    @ObservationIgnored weak var contentView: NSView?
     /// Kích thước thư mục tính nền, dùng chung cho list và icon view.
     @ObservationIgnored let folderSizes = FolderSizeStore()
 
@@ -102,7 +112,16 @@ final class BrowserModel {
     var canGoForward: Bool { !forwardStack.isEmpty }
     var canGoUp: Bool { folder.path != "/" }
 
+    /// Pane đang active trong cửa sổ (đơn thì luôn true).
+    var isActivePane: Bool { windowModel.map { $0.active === self } ?? true }
+
     var selectedItems: [FileItem] { items.filter { selection.contains($0.url.path) } }
+
+    /// Đưa focus bàn phím vào bảng / lưới của pane.
+    func focusContent() {
+        guard let v = contentView, let w = v.window else { return }
+        w.makeFirstResponder(v)
+    }
 
     // MARK: Khởi động
 

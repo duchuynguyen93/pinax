@@ -5,6 +5,9 @@ import PinaxCore
 /// Breadcrumb bấm được; ⌘L đổi thành ô gõ đường dẫn.
 struct PathBar: View {
     let model: BrowserModel
+    /// Dual pane: vạch accent 2pt ở đáy khi pane active; pane kia mờ đi.
+    var dual = false
+    var isActive = true
     @State private var suggestions: [String] = []
     @State private var suggestionIndex: Int?
 
@@ -26,6 +29,10 @@ struct PathBar: View {
         .frame(height: 30)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.bar)
+        .overlay(alignment: .bottom) {
+            if dual, isActive { Rectangle().fill(Color.accentColor).frame(height: 2) }
+        }
+        .opacity(dual && !isActive ? 0.55 : 1)
         // Bấm vào vùng trống của path bar = gõ đường dẫn (nút breadcrumb tự nhận click của chúng).
         .contentShape(Rectangle())
         .onTapGesture { if !model.pathEditing { model.pathEditing = true } }

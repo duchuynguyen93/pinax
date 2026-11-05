@@ -45,10 +45,11 @@ extension BrowserModel {
         enqueueTransfer(selectedItems.map(\.url), kind: .duplicate)
     }
 
-    private func enqueueTransfer(_ urls: [URL], kind: TransferKind, to dest: URL? = nil) {
+    /// `selectIn`: pane sẽ chọn các mục mới tạo (mặc định chính pane này); dual pane truyền pane đích.
+    func enqueueTransfer(_ urls: [URL], kind: TransferKind, to dest: URL? = nil, selectIn target: BrowserModel? = nil) {
         let dest = dest ?? folder
-        transfers.enqueue(sources: urls, destination: dest, kind: kind, window: window ?? NSApp.keyWindow) { [weak self] created in
-            self?.selectCreated(created, in: dest)
+        transfers.enqueue(sources: urls, destination: dest, kind: kind, window: window ?? NSApp.keyWindow) { [weak self, weak target] created in
+            (target ?? self)?.selectCreated(created, in: dest)
         }
     }
 

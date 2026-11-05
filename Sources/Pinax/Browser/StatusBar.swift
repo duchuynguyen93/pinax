@@ -2,12 +2,15 @@ import SwiftUI
 
 struct StatusBar: View {
     let model: BrowserModel
+    /// Pane không active trong dual → chữ mờ đi.
+    var dimmed = false
 
     var body: some View {
         HStack {
             Text(summary)
             Spacer()
         }
+        .opacity(dimmed ? 0.5 : 1)
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)

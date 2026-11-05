@@ -11,6 +11,11 @@ enum BrowserKeys {
             model.toggleQuickLook()
             return true
         }
+        // Tab / ⇧Tab: đang dual thì chuyển pane; đơn thì giữ hành vi mặc định.
+        if event.keyCode == 48, flags.subtracting(.shift).isEmpty, model.windowModel?.isDual == true {
+            model.onSwitchPane?()
+            return true
+        }
         if flags == .command, event.keyCode == 125 {
             model.openSelection()
             return true
@@ -35,6 +40,12 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
         super.keyDown(with: event)
     }
 
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok { model?.onActivate?() }
+        return ok
+    }
+
     // ⌘C / ⌘V của menu Edit đi qua responder chain tới đây; ô chữ đang gõ giữ ⌘C / ⌘V của nó.
     @objc func copy(_ sender: Any?) { model?.copySelectionToPasteboard() }
     @objc func paste(_ sender: Any?) { model?.pasteFromPasteboard(move: false) }
@@ -48,6 +59,7 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        model?.onActivate?()
         // Như Finder: chuột phải vào mục chưa chọn → chọn riêng mục đó; vào chỗ trống → bỏ chọn.
         let row = row(at: convert(event.locationInWindow, from: nil))
         if row >= 0 {
@@ -92,7 +104,9 @@ struct FileListView: NSViewRepresentable {
         table.allowsMultipleSelection = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
-        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
+        // Hai khung: mỗi khung hẹp → co đều mọi cột và lưu độ rộng riêng, không thì cột Name đẩy các cột khác ra ngoài.
+        let dual = model.windowModel?.isDual == true
+        table.columnAutoresizingStyle = dual ? .uniformColumnAutoresizingStyle : .firstColumnOnlyAutoresizingStyle
         table.rowSizeStyle = .default
         table.dataSource = c
         table.delegate = c
@@ -112,21 +126,24 @@ struct FileListView: NSViewRepresentable {
             return col
         }
         table.addTableColumn(column("name", L("Name", "Tên"), width: 340, min: 160, key: .name))
-        table.addTableColumn(column("modified", L("Date Modified", "Ngày sửa"), width: 200, min: 120, key: .modified))
+        table.addTableColumn(column("modified", L("Date Modified", "Ngày sửa"), width: 200, min: 100, key: .modified))
         let sizeCol = column("size", L("Size", "Dung lượng"), width: 90, min: 60, key: .size)
         sizeCol.headerCell.alignment = .right
         table.addTableColumn(sizeCol)
-        table.addTableColumn(column("kind", L("Kind", "Loại"), width: 150, min: 80, key: .kind))
-        table.autosaveName = "pinax.browser.list.v2"
+        table.addTableColumn(column("kind", L("Kind", "Loại"), width: 150, min: 60, key: .kind))
+        table.autosaveName = dual ? "pinax.browser.list.dual.v1" : "pinax.browser.list.v2"
         table.autosaveTableColumns = true
 
         let scroll = NSScrollView()
         scroll.documentView = table
+        // Bảng mới tạo rộng bằng tổng các cột; co về đúng bề rộng khung sau lần dàn trang đầu.
+        if dual { DispatchQueue.main.async { table.sizeToFit() } }
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         c.table = table
         table.model = model
+        model.contentView = table
         table.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
         table.keyHandler = { [weak c] event in
             guard let c else { return false }
@@ -145,6 +162,7 @@ struct FileListView: NSViewRepresentable {
         let c = context.coordinator
         c.model = model
         c.table?.model = model
+        model.contentView = c.table
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
                sort: sort, pathEditing: pathEditing, renameToken: renameToken)
     }
@@ -208,7 +226,7 @@ struct FileListView: NSViewRepresentable {
                     FileHandle.standardError.write(Data(String(
                         format: "[Pinax perf] %d items: navigation start -> table reload %.1f ms\n", items.count, ms).utf8))
                 }
-                if !didInitialFocus, !items.isEmpty, !pathEditing {
+                if !didInitialFocus, !items.isEmpty, !pathEditing, model.isActivePane {
                     didInitialFocus = true
                     table.window?.makeFirstResponder(table)
                 }

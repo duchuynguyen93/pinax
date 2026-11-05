@@ -19,6 +19,12 @@ final class BrowserCollectionView: NSCollectionView, NSMenuItemValidation {
         if event.clickCount == 2, indexPathForItem(at: convert(event.locationInWindow, from: nil)) != nil { onOpen?() }
     }
 
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok { model?.onActivate?() }
+        return ok
+    }
+
     override func keyDown(with event: NSEvent) {
         if keyHandler?(event) == true { return }
         let flags = event.modifierFlags.intersection([.command, .control, .option])
@@ -48,6 +54,7 @@ final class BrowserCollectionView: NSCollectionView, NSMenuItemValidation {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        model?.onActivate?()
         // Chuột phải vào mục chưa chọn → chọn riêng mục đó (như Finder).
         if let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
             if !selectionIndexPaths.contains(ip) {
@@ -156,6 +163,7 @@ struct IconGridView: NSViewRepresentable {
         collection.onOpen = { [weak c] in c?.model.openSelection() }
         collection.onTypeSelect = { [weak c] s in c?.typeSelect(s) }
         collection.model = model
+        model.contentView = collection
         // Kéo thả: nguồn kéo cho phép chép / chuyển; thả lên ô thư mục hoặc chỗ trống.
         collection.registerForDraggedTypes([.fileURL])
         collection.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
@@ -176,6 +184,7 @@ struct IconGridView: NSViewRepresentable {
         let c = context.coordinator
         c.model = model
         c.collection?.model = model
+        model.contentView = c.collection
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
                iconSize: iconSize, pathEditing: pathEditing, renameToken: renameToken)
     }
@@ -245,7 +254,7 @@ struct IconGridView: NSViewRepresentable {
                 FileHandle.standardError.write(Data(String(
                     format: "[Pinax perf] %d items: navigation start -> icon view reload %.1f ms\n", items.count, ms).utf8))
             }
-            if !didInitialFocus, !items.isEmpty, !pathEditing {
+            if !didInitialFocus, !items.isEmpty, !pathEditing, model.isActivePane {
                 didInitialFocus = true
                 collection.window?.makeFirstResponder(collection)
             }

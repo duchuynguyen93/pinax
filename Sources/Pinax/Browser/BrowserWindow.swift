@@ -8,48 +8,84 @@ struct BrowserSeed: Codable, Hashable {
     var id = UUID()
     var path: String?
     var asTab = false
+    /// Khác nil → mở ở chế độ dual pane, pane phải ở thư mục này.
+    var secondPath: String?
+    /// Dual: pane phải là pane active lúc mở.
+    var activeRight = false
+
+    init(id: UUID = UUID(), path: String? = nil, asTab: Bool = false, secondPath: String? = nil, activeRight: Bool = false) {
+        self.id = id
+        self.path = path
+        self.asTab = asTab
+        self.secondPath = secondPath
+        self.activeRight = activeRight
+    }
+
+    // Trạng thái cửa sổ đã lưu từ bản cũ không có hai khoá mới.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        path = try c.decodeIfPresent(String.self, forKey: .path)
+        asTab = try c.decodeIfPresent(Bool.self, forKey: .asTab) ?? false
+        secondPath = try c.decodeIfPresent(String.self, forKey: .secondPath)
+        activeRight = try c.decodeIfPresent(Bool.self, forKey: .activeRight) ?? false
+    }
 }
 
 extension FocusedValues {
     @Entry var browser: BrowserModel?
+    @Entry var browserWindow: WindowModel?
 }
 
-/// Gốc của một cửa sổ / tab: sở hữu `BrowserModel`, lưu - khôi phục thư mục, cấu hình tab.
+/// Gốc của một cửa sổ / tab: sở hữu `WindowModel` (1-2 pane), lưu - khôi phục thư mục, cấu hình tab.
 struct BrowserRoot: View {
     @Environment(AppEnvironment.self) private var env
     let seed: BrowserSeed
-    @State private var model: BrowserModel
+    @State private var win: WindowModel
     @SceneStorage("pinax.browser.folder") private var storedPath = ""
+    @SceneStorage("pinax.browser.folder2") private var storedPath2 = ""
+    @SceneStorage("pinax.browser.activeRight") private var storedActiveRight = false
 
     init(seed: BrowserSeed, env: AppEnvironment) {
         self.seed = seed
-        _model = State(initialValue: BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, transfers: env.transfers, home: env.settings.home))
+        _win = State(initialValue: WindowModel {
+            BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, transfers: env.transfers, home: env.settings.home)
+        })
     }
 
     var body: some View {
-        BrowserWindowView(model: model)
+        BrowserWindowView(window: win)
             // Đổi ngôn ngữ → dựng lại cây view; model nằm ở trên `.id` nên không mất trạng thái.
             .id(env.settings.langPref)
-            .focusedSceneValue(\.browser, model)
+            .focusedSceneValue(\.browser, win.active)
+            .focusedSceneValue(\.browserWindow, win)
             .background(WindowAccessor { window in
-                model.window = window
+                win.attach(window: window)
                 window.tabbingIdentifier = "pinax.browser"
                 window.tabbingMode = .automatic
                 if seed.asTab { TabRequest.attach(window) }
             })
             .task {
-                model.start(path: initialPath())
+                win.primary.start(path: initialPath())
+                if let (second, right) = initialSecond() { win.openDual(at: second, activeRight: right) }
                 await runQATransfer()
             }
-            .onChange(of: model.folder) {
-                storedPath = model.folder.path
-                env.prefs.rememberFolder(model.folder)
+            .onChange(of: win.primary.folder) { remember(win.primary) }
+            .onChange(of: win.secondary?.folder.path ?? "") {
+                storedPath2 = win.secondary?.folder.path ?? ""
+                if let s = win.secondary { env.prefs.rememberFolder(s.folder) }
             }
-            .onChange(of: env.prefs.sort) { model.resort() }
-            .onChange(of: env.prefs.showHidden) { model.reload() }
+            .onChange(of: win.activeIsSecondary) { storedActiveRight = win.activeIsSecondary }
+            .onChange(of: env.prefs.sort) { win.panes.forEach { $0.resort() } }
+            .onChange(of: env.prefs.showHidden) { win.panes.forEach { $0.reload() } }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
-                if let w = note.object as? NSWindow, w === model.window { model.git.refresh(model.folder) }
+                if let w = note.object as? NSWindow, w === win.window { win.panes.forEach { $0.git.refresh($0.folder) } }
             }
+    }
+
+    private func remember(_ pane: BrowserModel) {
+        if pane === win.primary { storedPath = pane.folder.path }
+        env.prefs.rememberFolder(pane.folder)
     }
 
     /// PINAX_OPEN (QA, chỉ cửa sổ đầu tiên) > thư mục đã lưu của cửa sổ này > thư mục seed (⌘T) > thư mục cuối dùng > Home.
@@ -60,12 +96,20 @@ struct BrowserRoot: View {
         return env.prefs.lastFolder ?? env.settings.home.path
     }
 
+    /// Pane phải lúc mở: PINAX_QA_DUAL (QA, cửa sổ đầu) > pane phải đã lưu > seed. nil = đơn.
+    private func initialSecond() -> (String, Bool)? {
+        if let p = Self.takeQADualPath() { return (p, false) }
+        if !storedPath2.isEmpty { return (storedPath2, storedActiveRight) }
+        if let p = seed.secondPath, !p.isEmpty { return (p, seed.activeRight) }
+        return nil
+    }
+
     /// PINAX_QA_TRANSFER=<nguồn>:<thư mục đích> (QA): chép nguồn vào đích một lần, khi cửa sổ đầu tiên đã mở.
     private func runQATransfer() async {
         guard let (src, dest) = Self.takeQATransfer() else { return }
         try? await Task.sleep(for: .seconds(1))
         env.transfers.enqueue(sources: [URL(fileURLWithPath: src)], destination: URL(fileURLWithPath: dest, isDirectory: true),
-                              kind: .copy, window: model.window)
+                              kind: .copy, window: win.primary.window)
     }
 
     @MainActor private static var qaTransferConsumed = false
@@ -84,26 +128,44 @@ struct BrowserRoot: View {
         qaOpenConsumed = true
         return p
     }
+
+    @MainActor private static var qaDualConsumed = false
+    /// PINAX_QA_DUAL=<thư mục>: đúng một lần, cửa sổ đầu tiên mở dual với pane phải ở đó.
+    @MainActor private static func takeQADualPath() -> String? {
+        guard !qaDualConsumed, let p = ProcessInfo.processInfo.environment["PINAX_QA_DUAL"], !p.isEmpty else { return nil }
+        qaDualConsumed = true
+        return p
+    }
 }
 
 struct BrowserWindowView: View {
-    @Bindable var model: BrowserModel
+    let window: WindowModel
+
+    private var model: BrowserModel { window.active }
 
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model)
                 .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
         } detail: {
-            Group {
-                if let section = model.pinax {
-                    switch section {
-                    case .smartClean: SmartCleanView()
-                    case .downloads: TidyView()
-                    case .history: HistoryView()
+            VStack(spacing: 0) {
+                Group {
+                    if let section = model.pinax {
+                        switch section {
+                        case .smartClean: SmartCleanView()
+                        case .downloads: TidyView()
+                        case .history: HistoryView()
+                        }
+                    } else if let second = window.secondary {
+                        HSplitView {
+                            BrowserContent(model: window.primary, dual: true).frame(minWidth: 320)
+                            BrowserContent(model: second, dual: true).frame(minWidth: 320)
+                        }
+                    } else {
+                        BrowserContent(model: window.primary)
                     }
-                } else {
-                    BrowserContent(model: model)
                 }
+                TransferStrip()
             }
             .navigationTitle(model.title)
             .toolbar {
@@ -121,7 +183,8 @@ struct BrowserWindowView: View {
                         .help(L("Enclosing Folder", "Thư mục cha"))
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Picker(L("View", "Kiểu xem"), selection: $model.viewMode) {
+                    Picker(L("View", "Kiểu xem"), selection: Binding(
+                        get: { window.active.viewMode }, set: { window.active.viewMode = $0 })) {
                         Image(systemName: "list.bullet").tag(BrowserViewMode.list)
                             .help(L("As List (⌘1)", "Dạng danh sách (⌘1)"))
                         Image(systemName: "square.grid.2x2").tag(BrowserViewMode.icons)
@@ -145,23 +208,26 @@ struct BrowserWindowView: View {
         .background {
             // Phím tắt đổi kiểu xem (segmented control không gắn được phím cho từng đoạn).
             Group {
-                Button("") { model.viewMode = .list }.keyboardShortcut("1", modifiers: .command)
-                Button("") { model.viewMode = .icons }.keyboardShortcut("2", modifiers: .command)
+                Button("") { window.active.viewMode = .list }.keyboardShortcut("1", modifiers: .command)
+                Button("") { window.active.viewMode = .icons }.keyboardShortcut("2", modifiers: .command)
             }
             .opacity(0).allowsHitTesting(false).accessibilityHidden(true)
         }
-        .frame(minWidth: 900, minHeight: 560)
+        .frame(minWidth: window.isDual ? 1100 : 900, minHeight: 560)
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 40) }
     }
 }
 
-/// Path bar + danh sách / lưới icon + status bar.
+/// Path bar + danh sách / lưới icon + status bar. `dual`: nằm trong dual pane (có vạch / làm mờ theo pane active).
 struct BrowserContent: View {
     @Bindable var model: BrowserModel
+    var dual = false
+
+    private var isActive: Bool { !dual || model.isActivePane }
 
     var body: some View {
         VStack(spacing: 0) {
-            PathBar(model: model)
+            PathBar(model: model, dual: dual, isActive: isActive)
             Divider()
             Group {
                 switch model.viewMode {
@@ -176,11 +242,12 @@ struct BrowserContent: View {
                 }
             }
             .overlay { stateOverlay }
-            TransferStrip()
             Divider()
-            StatusBar(model: model)
+            StatusBar(model: model, dimmed: !isActive)
         }
         .quickLookPreview($model.quickLookURL, in: model.quickLookURLs)
+        // Bấm bất kỳ đâu trong pane (kể cả path bar, status bar) → pane active; không chặn click của con.
+        .simultaneousGesture(TapGesture().onEnded { model.onActivate?() }, including: dual ? .all : .subviews)
     }
 
     @ViewBuilder private var stateOverlay: some View {
