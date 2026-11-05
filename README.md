@@ -4,7 +4,7 @@
 
 Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk clutter and tidies your Downloads folder. It never deletes anything: every removal is a move to the Trash, and every batch can be undone from the built-in history. Later milestones will grow it into a Finder companion with its own file browser.
 
-> Version 0.3.0 (M3). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
+> Version 0.4.0 (M4). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
 
 ## Features
 
@@ -16,6 +16,7 @@ Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk c
   large files, apps you have not opened, old screen recordings, old downloads.
 - **Tidy Downloads**: previews, then sorts loose files into `Images`, `Videos`, `Audio`, `Documents`, `Archives`, `Installers`, `Code` and `Other` folders. Skips hidden files, folders, aliases and half-finished downloads.
 - **History and Undo**: every batch is journaled; undo the latest with Cmd+Z or any batch from the History screen, with a per-item result.
+- **Uninstall Apps**: removes an app together with the caches, preferences and support files it left in `~/Library`, and Smart Clean finds leftovers of apps you already deleted. All undoable.
 - **Storage bar**: startup disk usage split into Apps, Trash, Selected, Other and Free.
 - **Bilingual**: English and Vietnamese, following the system language or chosen in Settings.
 
@@ -59,9 +60,9 @@ The version lives in the [`VERSION`](VERSION) file.
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 | Smart Clean, Tidy Downloads, History and Undo, Settings | Done (0.1.0) |
-| M1.5 | Leftovers of deleted apps, Empty Trash, Quick Look in lists | Planned |
 | M2 | File browser, git-aware path bar, open in Terminal/Editor, global hotkey / Services / Open With / `pinax://` entry points (macOS 27 refuses third-party default folder viewers) | Done (0.2.0) |
 | M3 | Copy/move queue with undo, Finder clipboard interop, drag and drop, dual pane, workspaces | Done (0.3.0) |
+| M4 | Uninstall apps with their `~/Library` files, App leftovers rule, Quick Look in lists (Empty Trash dropped on purpose) | Done (0.4.0) |
 
 ## Documentation
 

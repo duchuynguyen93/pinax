@@ -37,6 +37,8 @@ final class SmartCleanModel {
     private(set) var isPerforming = false
     private(set) var storage = StorageInfo()
     var expanded: Set<String> = []
+    /// Dòng đang chọn (một dòng) để Space mở Quick Look; không liên quan tới checkbox.
+    var focusedID: UUID?
 
     private var generation = 0
     private var scanTask: Task<Void, Never>?
@@ -134,6 +136,8 @@ final class SmartCleanModel {
     }
 
     // MARK: Selection
+
+    func candidate(id: UUID) -> Candidate? { byID[id] }
 
     func candidates(for ruleID: String) -> [Candidate] { results[ruleID]?.candidates ?? [] }
 

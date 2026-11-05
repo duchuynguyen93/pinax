@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-05
+
+Milestone M4: uninstall apps cleanly and find what deleted apps left behind.
+
+### Added
+- **Uninstall Apps** (sidebar > Pinax): pick an installed app (or drop a `.app` on the screen) to see the app and everything it keeps in `~/Library`: Application Support, Caches, Preferences (and ByHost), Saved Application State, HTTPStorages, WebKit, Logs, Cookies, LaunchAgents and its own Container. Items found by bundle id are ticked; items only matching the app's name or a shared developer group container are listed but not ticked. Running apps are asked to quit first. Everything goes to the Trash as one History entry, undone with Cmd+Z. System apps and Pinax are not listed.
+- **App leftovers** rule in Smart Clean ("Your call", nothing pre-ticked): items in `~/Library` named after the bundle id of an app that is no longer installed and not touched for 30 days (Settings > Leftovers). It is deliberately cautious: it skips anything belonging to an app found in /Applications, ~/Applications, Spotlight or LaunchServices (including helpers and other apps from the same developer or with the same name), command-line tools found in Homebrew / `~/.local/bin` / cargo and similar folders, system components, folders with recently changed contents, and LaunchAgents whose program still exists. Containers are never scanned.
+- Quick Look (Space) on a focused row in Smart Clean results and in the Uninstall list.
+
 ## [0.3.0] - 2026-11-05
 
 Milestone M3: copy and move without Finder, two panes, workspaces.
@@ -75,7 +84,8 @@ First public release (milestone M1). Apple Silicon, macOS 26+, ad-hoc signed.
 - `build.sh` producing an arm64 `Pinax.app`, plus `./build.sh dmg` for `Pinax-<version>-arm64.dmg`, `.zip` and `SHA256SUMS.txt`.
 - Documentation: README, user guide, architecture, contributing guide, AGENTS.md.
 
-[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/duchuynguyen93/pinax/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/duchuynguyen93/pinax/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/duchuynguyen93/pinax/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/duchuynguyen93/pinax/compare/v0.1.0...v0.1.1

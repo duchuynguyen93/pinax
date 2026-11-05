@@ -21,6 +21,7 @@ struct PinaxApp: App {
                 .environment(env.settings)
                 .environment(env.smart)
                 .environment(env.tidy)
+                .environment(env.uninstall)
                 .environment(env.history)
                 .environment(env.toast)
                 .environment(env.favorites)

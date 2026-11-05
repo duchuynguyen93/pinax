@@ -60,6 +60,7 @@ A path appears under one rule only (the first in the order below). A selected fo
 | Large files | Your call | Files in your home folder above a size, except `~/Library`, the Trash and the contents of packages (Photos library, apps, ...) | 500 MB | No |
 | Apps you haven't opened | Your call | Apps in `/Applications` and `~/Applications` last opened long ago. Apple apps and Pinax are never listed | 180 days. If macOS does not know when an app was last used, it is **never** flagged | No |
 | Old screen recordings | Your call | `.mov` files named "Screen Recording..." / "Bản ghi màn hình..." in Desktop, Documents, Movies and your custom screenshot location | 30 days | No |
+| App leftovers | Your call | Files in `~/Library` named after the bundle id of an app that is no longer installed (see below) | 30 days untouched | No |
 | Old downloads | Your call | Items (files and folders) directly in Downloads not opened or added for a long time | 90 days. Items with no known date are skipped | No |
 
 Caveats:
@@ -69,6 +70,12 @@ Caveats:
 - **Selecting every copy of a duplicate.** Pinax warns and offers to deselect, so you never lose all copies.
 - **Apps.** Unused apps move to the Trash like any file; their settings and leftovers are not touched (leftover cleanup is planned for M1.5).
 - Nothing is ever emptied from the Trash. Use **Settings > Open Trash** and empty it yourself when you are sure.
+
+**App leftovers** is cautious on purpose. It skips: anything of an app Pinax can find (in /Applications, ~/Applications, Spotlight or LaunchServices), helpers of installed apps, other apps' files from the same developer or carrying the name of an installed app, command-line tools found in `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin` and similar, Apple and system components, folders whose contents changed in the last 30 days, and LaunchAgents whose program still exists. It never looks inside `~/Library/Containers`. Check each item before ticking it: an Application Support folder can hold settings or keys of a tool you still use elsewhere.
+
+### Uninstall Apps
+
+Sidebar > Pinax > **Uninstall Apps** lists the apps in /Applications and ~/Applications (Apple apps and Pinax are not listed). Select one, or drop a `.app` onto the screen, to see the app plus what it keeps in `~/Library`. Items found by its bundle id are ticked; items that only match its name, and shared developer group containers, are shown but not ticked. Space previews the focused item. **Move to Trash** asks running apps to quit first, then moves everything ticked to the Trash as one History entry: Cmd+Z puts it all back. An app owned by the system (some App Store apps) cannot be moved by Pinax; drag it to the Trash in Finder, the other items still go.
 
 ## 4. Downloads (Tidy)
 
@@ -241,6 +248,8 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 **Chép và chuyển.** Cmd+C / Cmd+V để chép file (dán qua lại với Finder được), Option+Cmd+V để chuyển tới đây, Cmd+D nhân bản; kéo thả vào danh sách, thư mục hoặc Favorites. Trùng tên thì chọn Giữ cả hai / Thay thế (mục cũ vào Thùng rác) / Bỏ qua. Mọi lần chép, chuyển đều hoàn tác được bằng Cmd+Z.
 
 **Hai khung và Workspace.** Cmd+\\ bật hai khung; Tab đổi khung; F5 chép, F6 chuyển sang khung kia. File > Save Window as Workspace (Ctrl+Cmd+S) lưu các tab của cửa sổ, mở lại từ sidebar hoặc `pinax://workspace?name=…`.
+
+**Gỡ ứng dụng.** Sidebar > Pinax > Gỡ ứng dụng: chọn app (hoặc thả file .app vào) để thấy app cùng các file nó để lại trong `~/Library`; mục khớp bundle id được tick, mục chỉ khớp theo tên thì không. App đang chạy sẽ được hỏi thoát trước. Tất cả vào Thùng rác, Cmd+Z trả lại. Smart Clean có thêm mục *Rác của app đã gỡ* (không tick sẵn, rất thận trọng: bỏ qua app còn cài, công cụ dòng lệnh, thành phần hệ thống, thư mục mới sửa trong 30 ngày).
 
 **Lịch sử và Hoàn tác.** Mỗi lần dọn/sắp xếp là một batch, giữ 50 batch gần nhất, còn nguyên sau khi mở lại app. Hoàn tác bằng **Cmd+Z**, nút trên toast hoặc trong màn Lịch sử. Mục bị bỏ qua sẽ có lý do (không còn tồn tại, chỗ cũ đã có file, thư mục không rỗng...).
 

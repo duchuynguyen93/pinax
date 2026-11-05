@@ -3,13 +3,14 @@ import Observation
 import PinaxCore
 
 enum SidebarSection: String, CaseIterable, Identifiable {
-    case smartClean, downloads, history
+    case smartClean, downloads, uninstall, history
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .smartClean: L("Smart Clean", "Dọn dẹp thông minh")
         case .downloads: L("Tidy Downloads", "Sắp xếp Downloads")
+        case .uninstall: L("Uninstall Apps", "Gỡ ứng dụng")
         case .history: L("History", "Lịch sử")
         }
     }
@@ -18,6 +19,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         switch self {
         case .smartClean: "sparkles"
         case .downloads: "arrow.down.circle"
+        case .uninstall: "xmark.app"
         case .history: "clock.arrow.circlepath"
         }
     }
@@ -31,6 +33,7 @@ final class AppEnvironment {
     let history: HistoryModel
     let smart: SmartCleanModel
     let tidy: TidyModel
+    let uninstall: UninstallModel
     let prefs = BrowserPrefs()
     let favorites = FavoritesModel()
     let volumes: VolumesModel
@@ -45,8 +48,10 @@ final class AppEnvironment {
         transfers = TransferQueue(history: history, toast: toast) { [settings] in settings.home }
         smart = SmartCleanModel(settings: settings, history: history, toast: toast)
         tidy = TidyModel(settings: settings, history: history, toast: toast)
+        uninstall = UninstallModel(settings: settings, history: history, toast: toast)
         toast.undoHandler = { [weak self] batch in self?.undo(batch) }
         tidy.onChanged = { [weak self] in self?.smart.refreshStorage() }
+        uninstall.onChanged = { [weak self] in self?.smart.refreshStorage() }
     }
 
     func undo(_ batch: Batch) {
@@ -62,6 +67,7 @@ final class AppEnvironment {
             toast.show(message, problems: problems)
             smart.refreshStorage()
             tidy.refresh()
+            uninstall.loadApps()
         }
     }
 

@@ -25,6 +25,7 @@ struct SettingsView: View {
                 days(L("Unused apps", "App lâu không mở"), $settings.clean.unusedAppDays)
                 days(L("Screen recordings", "Bản ghi màn hình"), $settings.clean.screenRecordingDays)
                 days(L("Stale projects", "Project lâu không đụng"), $settings.clean.staleProjectDays)
+                days(L("Leftovers: not touched for", "Rác app: không đụng tới"), $settings.clean.leftoverDays)
             }
             Section(L("Project folders", "Thư mục project")) {
                 ForEach(settings.clean.projectRoots, id: \.self) { url in

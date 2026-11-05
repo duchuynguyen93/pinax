@@ -1,9 +1,12 @@
 import SwiftUI
+import QuickLook
 import PinaxCore
 
 struct SmartCleanView: View {
     @Environment(SmartCleanModel.self) private var model
     @State private var showConfirm = false
+    @State private var quickLookURL: URL?
+    @FocusState private var listFocused: Bool
 
     var body: some View {
         @Bindable var model = model
@@ -78,6 +81,16 @@ struct SmartCleanView: View {
                 }
                 .padding(20)
             }
+            .focusable()
+            .focused($listFocused)
+            .focusEffectDisabled()
+            .onChange(of: model.focusedID) { _, id in if id != nil { listFocused = true } }
+            .onKeyPress(.space) {
+                guard let id = model.focusedID, let c = model.candidate(id: id) else { return .ignored }
+                quickLookURL = quickLookURL == nil ? c.url : nil
+                return .handled
+            }
+            .quickLookPreview($quickLookURL)
         }
     }
 

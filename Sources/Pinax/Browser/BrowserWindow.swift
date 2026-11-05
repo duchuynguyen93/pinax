@@ -77,6 +77,7 @@ struct BrowserRoot: View {
                 if storedPath.isEmpty || seed.path != nil, let raw = seed.viewMode, let mode = BrowserViewMode(rawValue: raw) {
                     win.panes.forEach { $0.applyPresetViewMode(mode) }
                 }
+                if let s = Self.takeQASection() { win.primary.showPinax(s) }
                 await runQATransfer()
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }
@@ -121,6 +122,14 @@ struct BrowserRoot: View {
                               kind: .copy, window: win.primary.window)
     }
 
+    @MainActor private static var qaSectionConsumed = false
+    /// PINAX_QA_SECTION=uninstall|smartClean|downloads|history (QA, chỉ cửa sổ đầu): mở thẳng một mục Pinax.
+    @MainActor private static func takeQASection() -> SidebarSection? {
+        guard !qaSectionConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_SECTION"], !v.isEmpty else { return nil }
+        qaSectionConsumed = true
+        return SidebarSection(rawValue: v)
+    }
+
     @MainActor private static var qaTransferConsumed = false
     @MainActor private static func takeQATransfer() -> (String, String)? {
         guard !qaTransferConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_TRANSFER"] else { return nil }
@@ -163,6 +172,7 @@ struct BrowserWindowView: View {
                         switch section {
                         case .smartClean: SmartCleanView()
                         case .downloads: TidyView()
+                        case .uninstall: UninstallView()
                         case .history: HistoryView()
                         }
                     } else if let second = window.secondary {

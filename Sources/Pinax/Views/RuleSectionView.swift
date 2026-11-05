@@ -187,5 +187,8 @@ struct CandidateRow: View {
             .padding(.trailing, 12)
         }
         .padding(.vertical, 7)
+        .background(model.focusedID == candidate.id ? Color.accentColor.opacity(0.15) : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture { model.focusedID = candidate.id }
     }
 }
