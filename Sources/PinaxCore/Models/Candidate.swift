@@ -40,6 +40,8 @@ public enum ReasonKind: Hashable, Sendable {
     case devCache(String)
     /// node_modules của project lâu không đụng tới (tên project).
     case staleProject(String)
+    /// Mục trong ~/Library do app đã gỡ để lại (bundle id).
+    case leftover(bundleID: String)
     case large
     case mailAttachment
     case screenRecording

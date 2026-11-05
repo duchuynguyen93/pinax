@@ -20,6 +20,7 @@ func ruleTitle(_ id: String) -> String {
     case "unusedApps": L("Apps you haven't opened", "App lâu không mở")
     case "screenRecordings": L("Old screen recordings", "Bản ghi màn hình cũ")
     case "oldDownloads": L("Old downloads", "Tải xuống đã lâu")
+    case "leftovers": L("App leftovers", "Rác của app đã gỡ")
     default: id
     }
 }
@@ -42,6 +43,8 @@ func ruleBlurb(_ id: String) -> String {
                                "Bản ghi màn hình cũ hơn số ngày đặt trong Cài đặt.")
     case "oldDownloads": L("Items in Downloads you haven't used for a long time.",
                            "Mục trong Downloads lâu không dùng tới.")
+    case "leftovers": L("Files in ~/Library left by apps that are no longer installed.",
+                        "File trong ~/Library do app đã gỡ để lại.")
     default: ""
     }
 }
@@ -56,6 +59,7 @@ func reasonText(_ c: Candidate) -> String {
     case .olderThan(let days): L("Older than \(days) days", "Cũ hơn \(days) ngày")
     case .devCache(let name): L("Cache: \(name)", "Cache: \(name)")
     case .staleProject(let name): L("Project \(name) untouched for a long time", "Project \(name) lâu không đụng tới")
+    case .leftover(let id): L("Left by \(id)", "Do \(id) để lại")
     case .large: L("Large file", "File lớn")
     case .mailAttachment: L("Mail attachment", "File đính kèm Mail")
     case .screenRecording: L("Old screen recording", "Bản ghi màn hình cũ")

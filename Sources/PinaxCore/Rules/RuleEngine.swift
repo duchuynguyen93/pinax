@@ -12,11 +12,11 @@ public struct RuleEngine: Sendable {
 
     public init(rules: [any CleanRule]) { self.rules = rules }
 
-    /// 9 rule M1 theo đúng thứ tự bảng §3.4 ("leftovers" hoãn sang M1.5).
+    /// 9 rule M1 theo thứ tự bảng §3.4, thêm "leftovers" (M4) ở cuối.
     public static func standard() -> RuleEngine {
         RuleEngine(rules: [
             DevCachesRule(), DevStaleRule(), DuplicatesRule(), InstallersRule(), MailDownloadsRule(),
-            LargeFilesRule(), UnusedAppsRule(), ScreenRecordingsRule(), OldDownloadsRule(),
+            LargeFilesRule(), UnusedAppsRule(), ScreenRecordingsRule(), OldDownloadsRule(), LeftoversRule(),
         ])
     }
 

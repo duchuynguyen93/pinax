@@ -280,7 +280,7 @@ import Foundation
     @Test func standardEngineOrderAndEvents() async throws {
         let engine = RuleEngine.standard()
         #expect(engine.rules.map(\.id) == ["devCaches", "devStale", "duplicates", "installers", "mailDownloads",
-                                           "largeFiles", "unusedApps", "screenRecordings", "oldDownloads"])
+                                           "largeFiles", "unusedApps", "screenRecordings", "oldDownloads", "leftovers"])
     }
 
     @Test func cancellationReturnsWithoutCrash() async throws {
@@ -337,6 +337,12 @@ import Foundation
             let pre = r.candidates.filter(\.preselected).count
             print("SMOKE \(r.ruleID): count=\(r.candidates.count) preselected=\(pre) bytes=\(bytes) (\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))) status=\(r.status)")
             for c in r.candidates.prefix(3) { print("    e.g. \(c.url.lastPathComponent) [\(c.reason)]") }
+        }
+        if let lo = results.first(where: { $0.ruleID == "leftovers" }) {
+            print("SMOKE leftovers list: count=\(lo.candidates.count)")
+            for c in lo.candidates.prefix(ProcessInfo.processInfo.environment["PINAX_SMOKE_ALL"] == "1" ? 1000 : 15) {
+                if case .leftover(let id) = c.reasonKind { print("    \(c.url.path) [\(id)]") }
+            }
         }
         print("SMOKE total bytes=\(total) (\(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))) in \(String(format: "%.1f", Date().timeIntervalSince(start)))s")
     }
