@@ -15,15 +15,15 @@ PINAX_PERF=1 swift test           # opt-in: 10k-file listing benchmark
 PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window opens <dir>, no window restoration
 PINAX_QA_TRANSFER=<srcPath>:<destDir> Pinax.app/Contents/MacOS/Pinax   # QA: enqueue a copy of srcPath into destDir ~1s after the first window opens
 PINAX_QA_DUAL=<dir> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window opens dual pane, right pane at <dir>
-PINAX_QA_WORKSPACES=<file>        # QA: workspaces.json đọc/ghi ở <file> thay vì file thật
+PINAX_QA_WORKSPACES=<file>        # QA: read/write workspaces from <file> instead of the real workspaces.json
 PINAX_QA_NOCLONE=1                # QA: transfers use real copyfile instead of APFS clone (to see progress)
 PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```
 
 ## Repo map
 
-- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions, Browse (DirectoryLister, FileItem, FileSort, FileOps, GitStatus, PathCompletion, DirectoryWatcher).
-- `Sources/Pinax/` SwiftUI: Browser (window, list/icon views, path bar, thumbnails, context menu), Integration (OpenRouter for Open With / `pinax://` / Services, HotKey, ExternalApps), ViewModels, Views, `Loc.swift`/`Texts.swift` for bilingual strings.
+- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions, Browse (DirectoryLister, FileItem, FileSort, FileOps, Transfer (copyfile copy/move + conflicts), WorkspaceStore, GitStatus, PathCompletion, DirectoryWatcher).
+- `Sources/Pinax/` SwiftUI: Browser (WindowModel with one or two panes, list/icon views, drag and drop, path bar, thumbnails, context menu), Transfers (queue + progress strip), Integration (OpenRouter for Open With / `pinax://` / Services, HotKey, ExternalApps), ViewModels, Views, `Loc.swift`/`Texts.swift` for bilingual strings.
 - `Tests/PinaxCoreTests/` Swift Testing suites.
 - `docs/ARCHITECTURE.md` design; `docs/plans/` one plan per milestone.
 - `build.sh`, `VERSION`, `CHANGELOG.md`, `GUIDE.md`, `CONTRIBUTING.md`.

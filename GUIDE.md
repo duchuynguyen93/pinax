@@ -7,7 +7,7 @@ Pinax is a file browser that also finds disk clutter and tidies your Downloads f
 3. [Smart Clean](#3-smart-clean)
 4. [Downloads (Tidy)](#4-downloads-tidy)
 5. [History and Undo](#5-history-and-undo)
-   - [Browsing](#browsing), [File operations](#file-operations), [Opening folders in Pinax](#opening-folders-in-pinax)
+   - [Browsing](#browsing), [File operations](#file-operations), [Copy and move](#copy-and-move), [Dual Pane and Workspaces](#dual-pane-and-workspaces), [Opening folders in Pinax](#opening-folders-in-pinax)
 6. [Settings](#6-settings)
 7. [Keyboard shortcuts](#7-keyboard-shortcuts)
 8. [Troubleshooting](#8-troubleshooting)
@@ -146,6 +146,20 @@ Everything below is journaled, shows up in History and is undone with Cmd+Z (Edi
 
 **Git in the path bar.** Inside a git repository the right side of the path bar shows the branch (or the short commit when detached), commits ahead/behind, and the number of changed files; hover for staged / modified / untracked / conflicted counts. It is read-only, refreshes when the folder changes or the window becomes active, and is hidden outside repositories or when Xcode Command Line Tools are not installed.
 
+## Copy and move
+
+- **Clipboard.** Cmd+C copies the selected files; paste them in Pinax with Cmd+V, or in Finder. Files copied in Finder paste into Pinax the same way. Option+Cmd+V moves them into the current folder instead (Finder's "Move Item Here"). Cmd+D duplicates the selection as `name copy.ext`.
+- **Drag and drop.** Drop files onto the list, the icon grid, a folder row or a Favorite. Within the same disk the files are moved, to another disk they are copied; hold Option to copy or Command to move. Dragging from Pinax into Finder lets Finder do the work (that one is not in Pinax's History).
+- **Progress.** A strip above the status bar shows the job, bytes copied and the current item; the ⓧ button stops it. Items finished before you stop stay and are undoable; the unfinished one is removed by moving it to the Trash. Jobs run one after another.
+- **Name conflicts.** Pinax asks once per job: **Keep Both** (`name 2.ext`), **Replace** (the old item is moved to the Trash first, so Cmd+Z brings it back), **Skip**, or **Cancel**.
+- **Undo.** Cmd+Z (or History) undoes a whole job: copies are moved to the Trash, moved files go back, replaced items come back from the Trash. Moving to another disk copies first and only then moves the original to the Trash.
+- Pinax never copies a folder into itself, never writes into protected locations, and never overwrites a file in place.
+
+## Dual Pane and Workspaces
+
+- **Dual Pane** (View > Dual Pane, Cmd+\\): two folders side by side, each with its own back/forward history and selection. The active pane has a blue line under its path bar; the sidebar, toolbar and menus act on it. Tab switches panes. **F5** copies and **F6** moves the selection to the other pane (also in the right-click menu). Each window remembers its panes.
+- **Workspaces.** File > Save Window as Workspace (Ctrl+Cmd+S) saves all tabs of the front window, including both panes and the view mode. Saved workspaces appear in the sidebar: click one to open it in a new window with all its tabs; right-click to Rename, Update from Current Window or Delete (deleting removes only the saved layout). `pinax://workspace?name=Work` opens one from Raycast, Alfred or Shortcuts. Stored in `~/Library/Application Support/Pinax/workspaces.json`.
+
 ## Opening folders in Pinax
 
 macOS 27 does not let a third-party app replace Finder as the default folder viewer (details: [plan, section 0](docs/plans/M2-file-browser.md)). Pinax offers these entry points instead:
@@ -184,6 +198,13 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 | Return | Rename the selected item (Esc cancels) |
 | Cmd+Delete | Move the selection to the Trash |
 | Option+Cmd+C | Copy path(s) |
+| Cmd+C / Cmd+V | Copy / paste files (works with Finder) |
+| Option+Cmd+V | Move the copied files here |
+| Cmd+D | Duplicate |
+| Cmd+\\ | Dual Pane on/off |
+| Tab | Switch pane (dual pane) |
+| F5 / F6 | Copy / move to the other pane |
+| Ctrl+Cmd+S | Save window as workspace |
 | Option+Cmd+T | Tidy the selected folder (File menu: "Tidy Folder") |
 | Return / Esc | Confirm / cancel in the confirmation sheet |
 
@@ -216,6 +237,10 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 **Sắp xếp Downloads.** Màn **Downloads** xem trước rồi xếp file lẻ cấp 1 vào `Images`, `Videos`, `Audio`, `Documents`, `Archives`, `Installers`, `Code`, `Other`. Bỏ qua file ẩn, thư mục, alias/liên kết, file đang tải dở, file vừa sửa trong 1 phút. Trùng tên thì đổi thành `tên 2.ext`, `tên 3.ext`, không bao giờ ghi đè. Phím tắt **Option+Cmd+T**.
 
 **Trình duyệt file.** Cửa sổ chính là trình duyệt: Cmd+1 dạng danh sách, Cmd+2 dạng lưới; Cmd+L gõ đường dẫn (Tab để hoàn thành); Space để Quick Look; Cmd+T mở tab. Shift+Cmd+N tạo thư mục, Return đổi tên, Cmd+Delete chuyển vào Thùng rác; tất cả đều hoàn tác được bằng Cmd+Z. Trong repo git, thanh đường dẫn hiện nhánh và số thay đổi.
+
+**Chép và chuyển.** Cmd+C / Cmd+V để chép file (dán qua lại với Finder được), Option+Cmd+V để chuyển tới đây, Cmd+D nhân bản; kéo thả vào danh sách, thư mục hoặc Favorites. Trùng tên thì chọn Giữ cả hai / Thay thế (mục cũ vào Thùng rác) / Bỏ qua. Mọi lần chép, chuyển đều hoàn tác được bằng Cmd+Z.
+
+**Hai khung và Workspace.** Cmd+\\ bật hai khung; Tab đổi khung; F5 chép, F6 chuyển sang khung kia. File > Save Window as Workspace (Ctrl+Cmd+S) lưu các tab của cửa sổ, mở lại từ sidebar hoặc `pinax://workspace?name=…`.
 
 **Lịch sử và Hoàn tác.** Mỗi lần dọn/sắp xếp là một batch, giữ 50 batch gần nhất, còn nguyên sau khi mở lại app. Hoàn tác bằng **Cmd+Z**, nút trên toast hoặc trong màn Lịch sử. Mục bị bỏ qua sẽ có lý do (không còn tồn tại, chỗ cũ đã có file, thư mục không rỗng...).
 

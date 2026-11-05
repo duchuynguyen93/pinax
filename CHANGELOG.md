@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-05
+
+Milestone M3: copy and move without Finder, two panes, workspaces.
+
+### Added
+- **Copy, move and duplicate** with a transfer queue: a strip above the status bar shows bytes copied, the current item and a Stop button; jobs run one at a time. APFS copies are instant clones. Every job is one History entry and Cmd+Z undoes it.
+- Clipboard like Finder: Cmd+C copies files (paste them in Finder too), Cmd+V pastes (also files copied in Finder), Option+Cmd+V moves them here ("Move Item Here"), Cmd+D duplicates (`name copy.ext`).
+- **Name conflicts** ask once per job: Keep Both (`name 2.ext`), Replace (the old item goes to the Trash, so it is undoable), Skip, or Cancel.
+- **Drag and drop**: drag files out to Finder or other apps; drop files from anywhere onto the list, the icon grid, a folder row or a Favorite. Same disk moves, another disk copies; hold Option to copy, Command to move.
+- **Dual Pane** (View > Dual Pane, Cmd+\\): two folders side by side, each with its own history and selection; Tab switches panes; F5 copies and F6 moves the selection to the other pane. The layout is restored with the window.
+- **Workspaces**: File > Save Window as Workspace (Ctrl+Cmd+S) saves every tab of the window (with dual-pane folders and view mode); open one from the sidebar or with `pinax://workspace?name=...`. Rename, update or delete from the right-click menu; deleting a workspace never touches files.
+
+### Safety
+- A copy is written under a hidden temporary name and only renamed into place when complete; a cancelled or failed copy is moved to the Trash, never deleted.
+- Moving to another disk copies first, then moves the original to the Trash. Undoing a copy moves the copy to the Trash.
+- Folders cannot be copied or moved into themselves; Replace refuses when the old item contains the source.
+
 ## [0.2.0] - 2026-11-05
 
 Milestone M2: Pinax becomes a file browser.
@@ -58,7 +75,8 @@ First public release (milestone M1). Apple Silicon, macOS 26+, ad-hoc signed.
 - `build.sh` producing an arm64 `Pinax.app`, plus `./build.sh dmg` for `Pinax-<version>-arm64.dmg`, `.zip` and `SHA256SUMS.txt`.
 - Documentation: README, user guide, architecture, contributing guide, AGENTS.md.
 
-[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/duchuynguyen93/pinax/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/duchuynguyen93/pinax/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/duchuynguyen93/pinax/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/duchuynguyen93/pinax/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/duchuynguyen93/pinax/releases/tag/v0.1.0

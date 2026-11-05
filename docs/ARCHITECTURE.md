@@ -68,6 +68,8 @@ Carried over from [plans/M1-smart-clean.md](plans/M1-smart-clean.md) section 1; 
 8. No Empty Trash. The app only offers "Open Trash".
 9. "Last used" being nil means unknown. Nil is never used to conclude "unused for a long time".
 
+Copy and move (M3, [plan](plans/M3-dual-pane-transfers.md) section 3): copies are written under a hidden `.pinax-partial-*` name and renamed into place with `RENAME_EXCL`, so a destination is never overwritten; a cancelled or failed partial copy goes to the Trash. A cross-disk move is copy then Trash of the original. Undoing a copy (`JournalOp.copy`) moves the copy to the Trash. Replace moves the old item to the Trash first. None of this adds a `removeItem`.
+
 Implementation notes: comparisons in `PathGuard` are case-insensitive (APFS default); `Executor` additionally refuses symlinks and protected app bundles regardless of where a candidate came from; Tidy never overwrites a destination. The single permitted `removeItem` is in `Executor.removeIfEmpty`, for empty directories Pinax itself created during Tidy.
 
 ## Testing strategy
