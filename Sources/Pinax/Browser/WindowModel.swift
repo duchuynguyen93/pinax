@@ -8,6 +8,8 @@ final class WindowModel {
     let primary: BrowserModel
     private(set) var secondary: BrowserModel?
     private(set) var activeIsSecondary = false
+    /// Tăng khi ⌘F: cửa sổ đưa focus vào ô tìm.
+    private(set) var searchFocusToken = 0
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private let make: () -> BrowserModel
 
@@ -27,6 +29,8 @@ final class WindowModel {
         guard let s = secondary else { return nil }
         return pane === primary ? s : (pane === s ? primary : nil)
     }
+
+    func focusSearch() { searchFocusToken += 1 }
 
     // MARK: Cửa sổ, dual
 

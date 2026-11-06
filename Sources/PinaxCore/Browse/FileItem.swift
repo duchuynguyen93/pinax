@@ -155,6 +155,9 @@ public struct FileItem: Identifiable, Hashable, Sendable {
             tagNames: [], ubiquitousStatus: ubiquitous)
     }
 
+    /// Dựng từ một URL bất kỳ (kết quả tìm kiếm): đọc key rẻ như khi liệt kê thư mục. nil nếu không đọc được.
+    public static func make(url: URL) -> FileItem? { listed(url) }
+
     /// Bản sao đã đọc mới tag + trạng thái iCloud (listing không đọc hai trường này).
     public func loadingDetails() -> FileItem {
         var fresh = url

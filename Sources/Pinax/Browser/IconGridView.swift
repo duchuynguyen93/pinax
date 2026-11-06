@@ -410,15 +410,17 @@ struct IconGridView: NSViewRepresentable {
             let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
             let i = proposedDropIndexPath.pointee.item
             var dest = model.folder
+            var onBackground = false
             if proposedDropOperation.pointee == .on, i >= 0, i < items.count, items[i].isNavigableFolder,
                !sources.contains(where: { $0.standardizedFileURL.path == items[i].url.standardizedFileURL.path }) {
                 dest = items[i].url
             } else {
+                onBackground = true
                 // Thả vào chỗ khác → thư mục đang xem; đưa vạch chèn về cuối.
                 proposedDropOperation.pointee = .before
                 proposedDropIndexPath.pointee = IndexPath(item: items.count, section: 0) as NSIndexPath
             }
-            guard model.pinax == nil,
+            guard model.pinax == nil, !onBackground || model.backgroundDropAllowed,
                   let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
             else { return [] }
             return kind == .move ? .move : .copy
@@ -428,10 +430,13 @@ struct IconGridView: NSViewRepresentable {
                             indexPath: IndexPath, dropOperation: NSCollectionView.DropOperation) -> Bool {
             let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
             var dest = model.folder
+            var onBackground = true
             if dropOperation == .on, indexPath.item < items.count, items[indexPath.item].isNavigableFolder {
                 dest = items[indexPath.item].url
+                onBackground = false
             }
-            guard let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
+            guard !onBackground || model.backgroundDropAllowed,
+                  let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
             else { return false }
             model.performDrop(sources: sources, destination: dest, kind: kind)
             return true

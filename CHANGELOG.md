@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-06
+
+Milestone M6: search in the browser.
+
+### Added
+- **Search** (Cmd+F, or the field in the toolbar). Two scopes: **This Folder** filters the current list as you type; **Subfolders** finds matching names at every level below the current folder, with a **Where** column showing each result's folder. Matching ignores case and accents ("tai lieu" finds "Tài liệu", "da lat" finds "Đà Lạt"); several words must all appear in the name.
+- Subfolder search uses Spotlight on the startup disk (fast, results update when files change) and Pinax's own folder walk on other disks. Up to 5,000 results; hidden files only when Show Hidden Files is on; contents of apps and other packages are not searched.
+- Results work like a normal list: open, Quick Look, copy, drag out, rename, Move to Trash, Copy Path. New Folder, Paste and Duplicate are off while searching subfolders (there is no single folder to put things in). Moving to another folder ends the search.
+
 ## [0.5.0] - 2026-11-06
 
 Milestone M5: see what is taking up space.

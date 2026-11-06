@@ -84,6 +84,7 @@ struct BrowserRoot: View {
                     win.primary.showPinax(.spaceMap)
                     env.spaceMap.scan(URL(fileURLWithPath: dir, isDirectory: true))
                 }
+                await runQASearch()
                 await runQATransfer()
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }
@@ -126,6 +127,23 @@ struct BrowserRoot: View {
         try? await Task.sleep(for: .seconds(1))
         env.transfers.enqueue(sources: [URL(fileURLWithPath: src)], destination: URL(fileURLWithPath: dest, isDirectory: true),
                               kind: .copy, window: win.primary.window)
+    }
+
+    /// PINAX_QA_SEARCH=<folder|subfolders>:<câu tìm> (QA, chỉ cửa sổ đầu): đặt sẵn tìm kiếm sau khi thư mục nạp xong.
+    private func runQASearch() async {
+        guard let (scope, query) = Self.takeQASearch() else { return }
+        for _ in 0..<100 where win.primary.isLoading { try? await Task.sleep(for: .milliseconds(50)) }
+        win.primary.searchScope = scope
+        win.primary.searchText = query
+    }
+
+    @MainActor private static var qaSearchConsumed = false
+    @MainActor private static func takeQASearch() -> (SearchScope, String)? {
+        guard !qaSearchConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_SEARCH"], !v.isEmpty else { return nil }
+        qaSearchConsumed = true
+        guard let colon = v.firstIndex(of: ":"), let scope = SearchScope(rawValue: String(v[..<colon])) else { return nil }
+        let query = String(v[v.index(after: colon)...])
+        return query.isEmpty ? nil : (scope, query)
     }
 
     @MainActor private static var qaSectionConsumed = false
@@ -172,8 +190,19 @@ struct BrowserRoot: View {
 
 struct BrowserWindowView: View {
     let window: WindowModel
+    @FocusState private var searchFocused: Bool
 
     private var model: BrowserModel { window.active }
+
+    /// Ô tìm gắn vào pane active; ở màn Pinax thì không có gì để tìm.
+    private var searchBinding: Binding<String> {
+        window.active.pinax != nil ? .constant("")
+            : Binding(get: { window.active.searchText }, set: { window.active.searchText = $0 })
+    }
+
+    private var scopeBinding: Binding<SearchScope> {
+        Binding(get: { window.active.searchScope }, set: { window.active.searchScope = $0 })
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -202,6 +231,12 @@ struct BrowserWindowView: View {
                 TransferStrip()
             }
             .navigationTitle(model.title)
+            .searchable(text: searchBinding, placement: .toolbar, prompt: L("Search", "Tìm"))
+            .searchScopes(scopeBinding, activation: .onSearchPresentation) {
+                ForEach(SearchScope.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .searchFocused($searchFocused)
+            .onChange(of: window.searchFocusToken) { if model.pinax == nil { searchFocused = true } }
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button { model.back() } label: { Image(systemName: "chevron.left") }
@@ -268,7 +303,7 @@ struct BrowserContent: View {
                 case .list:
                     FileListView(model: model, generation: model.generation, resetToken: model.resetToken,
                                  revealToken: model.revealToken, sort: model.prefs.sort, pathEditing: model.pathEditing,
-                                 renameToken: model.renameToken)
+                                 renameToken: model.renameToken, showWhere: model.inSubfolderSearch)
                 case .icons:
                     IconGridView(model: model, generation: model.generation, resetToken: model.resetToken,
                                  revealToken: model.revealToken, iconSize: model.iconSize, pathEditing: model.pathEditing,
@@ -314,6 +349,11 @@ struct BrowserContent: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background)
+        } else if model.isSearching {
+            if model.items.isEmpty && !model.isLoading && !model.searchRunning {
+                ContentUnavailableView.search(text: model.searchText)
+                    .allowsHitTesting(false)
+            }
         } else if model.items.isEmpty && !model.isLoading {
             Text(L("This folder is empty", "Thư mục trống"))
                 .foregroundStyle(.secondary)

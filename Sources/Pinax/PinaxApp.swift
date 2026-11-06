@@ -123,7 +123,12 @@ struct PinaxCommands: Commands {
                 env.tidyNow()
             }
             .keyboardShortcut("t", modifiers: [.option, .command])
-            .disabled(!env.tidy.canTidy)
+            .disabled(!env.tidy.canTidy || browser?.inSubfolderSearch == true)
+        }
+        CommandGroup(after: .textEditing) {
+            Button(L("Find", "Tìm")) { browserWindow?.focusSearch() }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(browserWindow == nil || browser?.pinax != nil)
         }
         CommandGroup(after: .pasteboard) {
             Button(L("Move Item Here", "Chuyển mục vào đây")) {

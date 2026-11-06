@@ -15,6 +15,17 @@ enum IconSize: Int, CaseIterable {
     var smaller: IconSize? { IconSize(rawValue: rawValue - 1) }
 }
 
+/// Phạm vi tìm: lọc danh sách đang xem, hoặc tìm đệ quy trong thư mục con.
+enum SearchScope: String, CaseIterable {
+    case folder, subfolders
+    var title: String {
+        switch self {
+        case .folder: L("This Folder", "Thư mục này")
+        case .subfolders: L("Subfolders", "Thư mục con")
+        }
+    }
+}
+
 enum BrowseError: Equatable {
     case denied
     case failed(String)
@@ -36,6 +47,7 @@ final class BrowserModel {
     private(set) var folder: URL
     /// Khác nil → vùng nội dung hiện màn M1 tương ứng thay vì thư mục.
     private(set) var pinax: SidebarSection?
+    /// Cái đang hiển thị: danh sách thư mục, đã lọc / thay bằng kết quả khi đang tìm.
     private(set) var items: [FileItem] = []
     /// Tăng mỗi khi `items` đổi → bảng nạp lại.
     private(set) var generation = 0
@@ -91,6 +103,45 @@ final class BrowserModel {
     static let viewModeKey = "pinax.browser.viewMode"
     static let iconSizeKey = "pinax.browser.iconSize"
 
+    // MARK: Tìm kiếm
+
+    /// Câu tìm (ô tìm trên toolbar). Đổi → lọc ngay (This Folder) hoặc tìm lại sau 200 ms (Subfolders).
+    var searchText = "" {
+        didSet { if !silentSearchChange, searchText != oldValue { searchChanged() } }
+    }
+    var searchScope: SearchScope = .folder {
+        didSet { if !silentSearchChange, searchScope != oldValue { searchChanged() } }
+    }
+    /// Đang tìm bằng engine (Spotlight / fts) chưa xong.
+    private(set) var searchRunning = false
+    /// Kết quả Subfolders bị cắt ở 5 000.
+    private(set) var searchTruncated = false
+    private(set) var searchMatcher = NameMatcher("")
+    /// Số kết quả cắt tối đa.
+    nonisolated static let searchLimit = 5000
+    var isSearching: Bool { !searchMatcher.isEmpty }
+    /// Đang xem kết quả đệ quy: không có "thư mục hiện tại" để tạo / dán / thả vào.
+    var inSubfolderSearch: Bool { isSearching && searchScope == .subfolders }
+    /// Thả vào nền bảng / lưới = thả vào thư mục đang xem; không được khi đang xem kết quả đệ quy.
+    var backgroundDropAllowed: Bool { !inSubfolderSearch }
+
+    @ObservationIgnored private var listed: [FileItem] = []
+    @ObservationIgnored private var results: [FileItem] = []
+    @ObservationIgnored private var listedVersion = 0
+    @ObservationIgnored private var resultsVersion = 0
+    @ObservationIgnored private var silentSearchChange = false
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var spotlight: SpotlightSearch?
+    /// Tăng mỗi khi huỷ / bắt đầu lại, để bỏ kết quả của lần tìm cũ.
+    @ObservationIgnored private var searchEpoch = 0
+    @ObservationIgnored private var usingSpotlight = false
+    @ObservationIgnored private var searchShowHidden = false
+    @ObservationIgnored private var spotlightBuilding = false
+    @ObservationIgnored private var spotlightPending: [URL]?
+    @ObservationIgnored private var spotlightFinished = false
+    @ObservationIgnored private var searchRoot = ""
+    @ObservationIgnored private var searchRootResolved = ""
+
     @ObservationIgnored private var listTask: Task<Void, Never>?
     @ObservationIgnored private var sortTask: Task<Void, Never>?
     @ObservationIgnored private var watcher: DirectoryWatcher?
@@ -98,7 +149,7 @@ final class BrowserModel {
     /// Mốc bắt đầu điều hướng, để in thời gian tới lúc bảng nạp xong (DEBUG).
     @ObservationIgnored var navStart: UInt64?
     /// PINAX_PERF_LOG=1: in thời gian từ lúc điều hướng tới lúc bảng nạp xong ra stderr (cả bản release).
-    static let perfLog = ProcessInfo.processInfo.environment["PINAX_PERF_LOG"] == "1"
+    nonisolated static let perfLog = ProcessInfo.processInfo.environment["PINAX_PERF_LOG"] == "1"
 
     init(prefs: BrowserPrefs, toast: ToastModel, history: HistoryModel, transfers: TransferQueue, home: URL) {
         self.prefs = prefs
@@ -201,6 +252,7 @@ final class BrowserModel {
     }
 
     func showPinax(_ section: SidebarSection) {
+        if clearSearchSilently() { rebuildItems() }
         folderSizes.cancelAll()
         pathEditing = false
         pinax = section
@@ -208,6 +260,7 @@ final class BrowserModel {
 
     private func move(to target: URL, select: String?) {
         if Self.perfLog { navStart = DispatchTime.now().uptimeNanoseconds }
+        clearSearchSilently()
         folderSizes.cancelAll()
         quickLookURL = nil
         pendingRename = nil
@@ -354,31 +407,34 @@ final class BrowserModel {
         isLoading = false
         switch result {
         case .success(let listing):
-            items = listing.items
+            listed = listing.items
+            listedVersion += 1
             availableBytes = listing.available
             error = nil
-            let listed = Set(listing.items.map { $0.url.path })
-            selection.formIntersection(listed)
-            let hit = pendingSelect.intersection(listed)
+            let shown = rebuildItems()
+            let hit = pendingSelect.intersection(shown)
             if !hit.isEmpty {
                 selection = hit
                 pendingSelect = []
                 revealToken += 1
             }
-            folderSizes.request(listing.items)
+            if !inSubfolderSearch { folderSizes.request(items) }
             if listing.sort != prefs.sort { resort() }
+            // Sau thao tác file / đổi "hiện file ẩn": Spotlight tự cập nhật, fts và bộ lọc ẩn thì phải tìm lại.
+            if inSubfolderSearch, !usingSpotlight || searchShowHidden != prefs.showHidden { startSubfolderSearch(debounce: false) }
         case .failure(let err):
             if err is CancellationError { return }
             guard FileManager.default.fileExists(atPath: folder.path) else {
                 recoverFromMissingFolder()
                 return
             }
-            items = []
+            listed = []
+            listedVersion += 1
             availableBytes = nil
             selection = []
             error = Self.classify(err)
+            rebuildItems()
         }
-        generation += 1
         if reset { resetToken += 1 }
     }
 
@@ -394,13 +450,231 @@ final class BrowserModel {
     /// Sắp xếp lại danh sách hiện có (đổi cột / bật tắt "thư mục trước").
     func resort() {
         sortTask?.cancel()
-        let current = items, sort = prefs.sort
+        let l = listed, r = results, sort = prefs.sort
+        let lv = listedVersion, rv = resultsVersion
         sortTask = Task { [weak self] in
-            let sorted = await Task.detached(priority: .userInitiated) { sort.sorted(current) }.value
+            let (sl, sr) = await Task.detached(priority: .userInitiated) { (sort.sorted(l), sort.sorted(r)) }.value
             guard let self, !Task.isCancelled else { return }
-            self.items = sorted
-            self.generation += 1
+            // Danh sách đổi giữa chừng → bản đã sắp là bản cũ, sắp lại.
+            guard self.listedVersion == lv, self.resultsVersion == rv else { self.resort(); return }
+            self.listed = sl
+            self.results = sr
+            self.rebuildItems()
         }
+    }
+
+    // MARK: Tìm kiếm
+
+    /// Dựng lại `items` từ `listed` / `results` theo trạng thái tìm, bỏ vùng chọn không còn hiện, tăng `generation`.
+    /// Trả về tập đường dẫn đang hiện.
+    @discardableResult
+    private func rebuildItems() -> Set<String> {
+        if !isSearching {
+            items = listed
+        } else if searchScope == .folder {
+            let m = searchMatcher
+            items = listed.filter { m.matches($0.name) }
+        } else {
+            items = results
+        }
+        let shown = Set(items.map { $0.url.path })
+        selection.formIntersection(shown)
+        generation += 1
+        return shown
+    }
+
+    private func cancelSearch() {
+        searchEpoch += 1
+        searchTask?.cancel()
+        searchTask = nil
+        spotlight?.stop()
+        spotlight = nil
+        spotlightBuilding = false
+        spotlightPending = nil
+        spotlightFinished = false
+        searchRunning = false
+    }
+
+    /// Xoá tìm kiếm khi rời thư mục: không dựng lại `items` (lần nạp sau sẽ làm).
+    @discardableResult
+    private func clearSearchSilently() -> Bool {
+        guard isSearching || !searchText.isEmpty || searchRunning else { return false }
+        cancelSearch()
+        silentSearchChange = true
+        searchText = ""
+        silentSearchChange = false
+        searchMatcher = NameMatcher("")
+        results = []
+        resultsVersion += 1
+        searchTruncated = false
+        return true
+    }
+
+    private func searchChanged() {
+        let wasSub = inSubfolderSearch
+        searchMatcher = NameMatcher(searchText)
+        cancelSearch()
+        searchTruncated = false
+        if !inSubfolderSearch {
+            if !results.isEmpty { results = []; resultsVersion += 1 }
+            rebuildItems()
+            if wasSub { folderSizes.request(items) }
+            return
+        }
+        if !wasSub { folderSizes.cancelAll() }
+        // Giữ kết quả cũ trên màn hình tới khi lô đầu của lần tìm mới về (đỡ nháy trống).
+        if !wasSub { rebuildItems() }
+        startSubfolderSearch(debounce: true)
+    }
+
+    /// Ổ khởi động (Spotlight đánh chỉ mục) hay ổ khác (fts).
+    private func shouldUseSpotlight(_ url: URL) -> Bool {
+        let p = url.standardizedFileURL.path
+        if p == home.path || p.hasPrefix(home.path + "/") || p.hasPrefix("/System/Volumes/Data") { return true }
+        if let v = try? url.resourceValues(forKeys: [.volumeIsRootFileSystemKey, .volumeURLKey]) {
+            if v.volumeIsRootFileSystem == true { return true }
+            if let vp = v.volume?.path, vp == "/" || vp == "/System/Volumes/Data" { return true }
+        }
+        return false
+    }
+
+    private func startSubfolderSearch(debounce: Bool) {
+        cancelSearch()
+        let epoch = searchEpoch
+        let root = folder, matcher = searchMatcher, showHidden = prefs.showHidden
+        searchRoot = root.path
+        searchRootResolved = root.resolvingSymlinksInPath().path
+        searchShowHidden = showHidden
+        searchRunning = true
+        usingSpotlight = shouldUseSpotlight(root) && SpotlightPredicate.make(searchText) != nil
+        let query = searchText
+        searchTask = Task { [weak self] in
+            if debounce { try? await Task.sleep(for: .milliseconds(200)) }
+            guard !Task.isCancelled, let self, self.searchEpoch == epoch else { return }
+            if self.usingSpotlight, let predicate = SpotlightPredicate.make(query) {
+                self.runSpotlight(root: root, predicate: predicate, matcher: matcher, showHidden: showHidden, epoch: epoch)
+            } else {
+                await self.runFTS(root: root, matcher: matcher, showHidden: showHidden, epoch: epoch)
+            }
+        }
+    }
+
+    private func publishResults(_ items: [FileItem], truncated: Bool) {
+        results = items
+        resultsVersion += 1
+        searchTruncated = truncated
+        rebuildItems()
+    }
+
+    // Spotlight: URL về từ NSMetadataQuery (main) → lọc, đọc FileItem, sắp ngoài main; gộp các lần giao khi đang bận.
+
+    private func runSpotlight(root: URL, predicate: NSPredicate, matcher: NameMatcher, showHidden: Bool, epoch: Int) {
+        let s = SpotlightSearch()
+        spotlight = s
+        let prefixes = [searchRoot, searchRootResolved]
+        s.start(root: root, predicate: predicate) { [weak self] urls, finished in
+            guard let self, self.searchEpoch == epoch else { return }
+            self.spotlightPending = urls
+            if finished { self.spotlightFinished = true }
+            self.pumpSpotlight(prefixes: prefixes, matcher: matcher, showHidden: showHidden, epoch: epoch)
+        }
+    }
+
+    private func pumpSpotlight(prefixes: [String], matcher: NameMatcher, showHidden: Bool, epoch: Int) {
+        guard !spotlightBuilding, let urls = spotlightPending else { return }
+        spotlightPending = nil
+        spotlightBuilding = true
+        let sort = prefs.sort
+        Task { [weak self] in
+            let built = await Task.detached(priority: .userInitiated) {
+                Self.buildSpotlightItems(urls, prefixes: prefixes, matcher: matcher, showHidden: showHidden, sort: sort)
+            }.value
+            guard let self, self.searchEpoch == epoch else { return }
+            self.spotlightBuilding = false
+            self.publishResults(built.items, truncated: built.truncated)
+            if self.spotlightPending != nil {
+                self.pumpSpotlight(prefixes: prefixes, matcher: matcher, showHidden: showHidden, epoch: epoch)
+            } else if self.spotlightFinished {
+                self.searchRunning = false
+            }
+        }
+    }
+
+    private nonisolated static let packageExtensions: Set<String> = [
+        "app", "framework", "bundle", "plugin", "appex", "xpc", "kext", "photoslibrary", "rtfd", "xcodeproj", "xcworkspace",
+    ]
+
+    private nonisolated static func buildSpotlightItems(_ urls: [URL], prefixes: [String], matcher: NameMatcher,
+                                                        showHidden: Bool, sort: FileSort) -> (items: [FileItem], truncated: Bool) {
+        var out: [FileItem] = []
+        var truncated = false
+        for url in urls {
+            let path = url.path
+            // Phần đường dẫn dưới gốc tìm; gốc chính nó và ngoài gốc đều bỏ.
+            guard let prefix = prefixes.first(where: { path.hasPrefix($0 + "/") }) else { continue }
+            guard matcher.matches(url.lastPathComponent) else { continue }
+            let rel = path.dropFirst(prefix.count + 1).split(separator: "/")
+            if !showHidden, rel.contains(where: { $0.hasPrefix(".") }) { continue }
+            // Như fts: không đi vào package (chính package vẫn có thể là kết quả).
+            if rel.dropLast().contains(where: { packageExtensions.contains(($0 as NSString).pathExtension.lowercased()) }) { continue }
+            if out.count >= searchLimit { truncated = true; break }
+            if let item = FileItem.make(url: url) { out.append(item) }
+        }
+        return (sort.sorted(out), truncated)
+    }
+
+    // fts: duyệt trong Task.detached, gom FileItem trong task, đẩy về main ≤5 lần/s.
+
+    private final class FTSBox: @unchecked Sendable {
+        var items: [FileItem] = []
+        var lastPublish: UInt64 = 0
+    }
+
+    private func runFTS(root: URL, matcher: NameMatcher, showHidden: Bool, epoch: Int) async {
+        let sort = prefs.sort
+        let skip: Set<String> = [home.appendingPathComponent("Library/Containers").path,
+                                 home.appendingPathComponent("Library/Group Containers").path]
+        let options = NameSearch.Options(includeHidden: showHidden, limit: Self.searchLimit, skipPaths: skip)
+        let work = Task.detached(priority: .userInitiated) { [weak self] in
+            let model = self
+            let box = FTSBox()
+            do {
+                let truncated = try NameSearch(options: options).run(root: root, matcher: matcher) { urls in
+                    box.items.append(contentsOf: urls.compactMap { FileItem.make(url: $0) })
+                    let now = DispatchTime.now().uptimeNanoseconds
+                    guard now - box.lastPublish >= 200_000_000 else { return }
+                    box.lastPublish = now
+                    let snap = sort.sorted(box.items)
+                    Task { @MainActor in
+                        guard let model, model.searchEpoch == epoch else { return }
+                        model.publishResults(snap, truncated: false)
+                    }
+                }
+                let final = sort.sorted(box.items)
+                await MainActor.run {
+                    guard let model, model.searchEpoch == epoch else { return }
+                    model.publishResults(final, truncated: truncated)
+                    model.searchRunning = false
+                }
+            } catch {
+                // Huỷ thì lần tìm mới đã tiếp quản (epoch khác); lỗi khác thì dừng "đang tìm".
+                await MainActor.run {
+                    guard let model, model.searchEpoch == epoch else { return }
+                    model.searchRunning = false
+                }
+            }
+        }
+        await withTaskCancellationHandler { _ = await work.value } onCancel: { work.cancel() }
+    }
+
+    /// Thư mục cha của kết quả, tương đối so với gốc tìm (cột Where); chính gốc → tên gốc.
+    func searchWhere(for item: FileItem) -> String {
+        let parent = item.url.deletingLastPathComponent().path
+        for root in [searchRoot, searchRootResolved] {
+            if parent == root { return FileManager.default.displayName(atPath: searchRoot) }
+            if parent.hasPrefix(root + "/") { return String(parent.dropFirst(root.count + 1)) }
+        }
+        return parent
     }
 
     // MARK: Theo dõi thay đổi

@@ -93,6 +93,8 @@ struct FileListView: NSViewRepresentable {
     let sort: FileSort
     let pathEditing: Bool
     let renameToken: Int
+    /// Tìm Subfolders → hiện cột Where.
+    let showWhere: Bool
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
@@ -131,6 +133,13 @@ struct FileListView: NSViewRepresentable {
         sizeCol.headerCell.alignment = .right
         table.addTableColumn(sizeCol)
         table.addTableColumn(column("kind", L("Kind", "Loại"), width: 150, min: 60, key: .kind))
+        // Cột Where thêm sau: layout đã lưu của bản cũ không có nó nên nó nằm cuối; ẩn / hiện đặt lại ở mỗi lần `sync`.
+        let whereCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("where"))
+        whereCol.title = L("Where", "Vị trí")
+        whereCol.width = 200
+        whereCol.minWidth = 80
+        whereCol.isHidden = true
+        table.addTableColumn(whereCol)
         table.autosaveName = dual ? "pinax.browser.list.dual.v1" : "pinax.browser.list.v2"
         table.autosaveTableColumns = true
 
@@ -164,7 +173,7 @@ struct FileListView: NSViewRepresentable {
         c.table?.model = model
         model.contentView = c.table
         c.sync(generation: generation, resetToken: resetToken, revealToken: revealToken,
-               sort: sort, pathEditing: pathEditing, renameToken: renameToken)
+               sort: sort, pathEditing: pathEditing, renameToken: renameToken, showWhere: showWhere)
     }
 
     @MainActor
@@ -193,10 +202,23 @@ struct FileListView: NSViewRepresentable {
             table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
         }
 
-        func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool, renameToken: Int = 0) {
+        func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool, renameToken: Int = 0,
+                  showWhere: Bool) {
             guard let table else { return }
             isUpdating = true
             defer { isUpdating = false }
+
+            // Đặt tường minh mỗi lần: autosave của bảng có thể đã khôi phục trạng thái ẩn / hiện cũ của cột.
+            if let col = table.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier("where")), col.isHidden == showWhere {
+                // Lấy / trả chỗ từ cột Tên, không co các cột Ngày / Cỡ / Loại (sizeToFit bóp đều mọi cột).
+                let name = table.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+                if showWhere { col.width = max(col.width, 220) }
+                if let name, table.columnAutoresizingStyle == .firstColumnOnlyAutoresizingStyle {
+                    name.width = showWhere ? max(name.minWidth, name.width - col.width) : name.width + col.width
+                }
+                col.isHidden = !showWhere
+                if table.columnAutoresizingStyle != .firstColumnOnlyAutoresizingStyle { table.sizeToFit() }
+            }
 
             let desc = NSSortDescriptor(key: sort.key.rawValue, ascending: sort.ascending)
             if table.sortDescriptors.first.map({ $0.key != desc.key || $0.ascending != desc.ascending }) ?? true {
@@ -279,7 +301,8 @@ struct FileListView: NSViewRepresentable {
                 table.window?.makeFirstResponder(table)
                 // Bù lần nạp lại đã hoãn trong lúc gõ.
                 sync(generation: model.generation, resetToken: model.resetToken, revealToken: model.revealToken,
-                     sort: model.prefs.sort, pathEditing: model.pathEditing, renameToken: model.renameToken)
+                     sort: model.prefs.sort, pathEditing: model.pathEditing, renameToken: model.renameToken,
+                     showWhere: model.inSubfolderSearch)
             }
         }
 
@@ -319,10 +342,12 @@ struct FileListView: NSViewRepresentable {
                         cell.imageView?.image = img
                     }
                 }
+            case "where": text = model.searchWhere(for: item)
             case "modified": text = item.modified.map { Self.dateFormatter().string(from: $0) } ?? "--"
             case "size":
                 if item.isDirectory, !item.isSymlink, !item.isAlias {
-                    text = model.folderSizes.info(for: item)?.size.map { fmtBytes($0) } ?? "…"
+                    // Kết quả Subfolders không tự tính cỡ thư mục.
+                    text = model.folderSizes.info(for: item)?.size.map { fmtBytes($0) } ?? (model.inSubfolderSearch ? "--" : "…")
                 } else {
                     text = item.size.map { fmtBytes($0) } ?? "--"
                 }
@@ -356,7 +381,7 @@ struct FileListView: NSViewRepresentable {
                 ])
             } else {
                 label.textColor = .secondaryLabelColor
-                label.lineBreakMode = .byTruncatingTail
+                label.lineBreakMode = id.rawValue == "where" ? .byTruncatingMiddle : .byTruncatingTail
                 label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2).isActive = true
                 if id.rawValue == "size" { label.alignment = .right }
             }
@@ -390,14 +415,16 @@ struct FileListView: NSViewRepresentable {
                        proposedRow row: Int, proposedDropOperation op: NSTableView.DropOperation) -> NSDragOperation {
             let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
             var dest = model.folder
+            var onBackground = false
             if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder,
                !sources.contains(where: { $0.standardizedFileURL.path == items[row].url.standardizedFileURL.path }) {
                 dest = items[row].url
             } else {
-                // Thả vào chỗ khác → cả bảng = thư mục đang xem.
+                // Thả vào chỗ khác → cả bảng = thư mục đang xem (trừ khi đang xem kết quả tìm Subfolders).
                 tableView.setDropRow(-1, dropOperation: .on)
+                onBackground = true
             }
-            guard model.pinax == nil,
+            guard model.pinax == nil, !onBackground || model.backgroundDropAllowed,
                   let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
             else { return [] }
             return kind == .move ? .move : .copy
@@ -407,8 +434,10 @@ struct FileListView: NSViewRepresentable {
                        row: Int, dropOperation op: NSTableView.DropOperation) -> Bool {
             let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
             var dest = model.folder
-            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder { dest = items[row].url }
-            guard let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
+            var onBackground = true
+            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder { dest = items[row].url; onBackground = false }
+            guard !onBackground || model.backgroundDropAllowed,
+                  let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
             else { return false }
             model.performDrop(sources: sources, destination: dest, kind: kind)
             return true

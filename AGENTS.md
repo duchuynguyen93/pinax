@@ -21,12 +21,13 @@ PINAX_QA_UNINSTALL_APP=<path.app> PINAX_QA_SECTION=uninstall Pinax.app/Contents/
 PINAX_QA_SPACEMAP=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window opens Space Map and scans <dir>
 PINAX_SMOKE=1 swift test --filter spaceMapRealHome   # read-only Space Map scan of the real home, prints time and top folders
 PINAX_QA_NOCLONE=1                # QA: transfers use real copyfile instead of APFS clone (to see progress)
+PINAX_QA_SEARCH=<folder|subfolders>:<query> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window starts a search (This Folder | Subfolders) after the folder loads
 PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```
 
 ## Repo map
 
-- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions, Apps (AppFootprint, InstalledBundleIndex, TeamID), Space (SpaceScanner fts walk, SizeNode tree), Browse (DirectoryLister, FileItem, FileSort, FileOps, Transfer (copyfile copy/move + conflicts), WorkspaceStore, GitStatus, PathCompletion, DirectoryWatcher).
+- `Sources/PinaxCore/` logic, no UI: Models, Context, Safety (PathGuard), Scan, Rules, Selection, Tidy, Journal (Executor), Permissions, Apps (AppFootprint, InstalledBundleIndex, TeamID), Space (SpaceScanner fts walk, SizeNode tree), Search (NameMatcher, SpotlightPredicate, NameSearch fts), Browse (DirectoryLister, FileItem, FileSort, FileOps, Transfer (copyfile copy/move + conflicts), WorkspaceStore, GitStatus, PathCompletion, DirectoryWatcher).
 - `Sources/Pinax/` SwiftUI: Browser (WindowModel with one or two panes, list/icon views, drag and drop, path bar, thumbnails, context menu), Transfers (queue + progress strip), Integration (OpenRouter for Open With / `pinax://` / Services, HotKey, ExternalApps), ViewModels (incl. UninstallModel, SpaceMapModel), Views (incl. UninstallView, SpaceMapView), `Loc.swift`/`Texts.swift` for bilingual strings.
 - `Tests/PinaxCoreTests/` Swift Testing suites.
 - `docs/ARCHITECTURE.md` design; `docs/plans/` one plan per milestone.

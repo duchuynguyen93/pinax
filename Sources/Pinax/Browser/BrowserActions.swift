@@ -7,7 +7,8 @@ extension BrowserModel {
 
     // MARK: Điều kiện bật / tắt (chỉ để bật tắt menu; Executor vẫn kiểm lại)
 
-    var canCreateFolderHere: Bool { pinax == nil && error == nil && fileOps.canCreateFolder(in: folder) }
+    /// Đang xem kết quả tìm đệ quy thì không có thư mục đích (tắt New Folder, Paste, Duplicate).
+    var canCreateFolderHere: Bool { pinax == nil && error == nil && !inSubfolderSearch && fileOps.canCreateFolder(in: folder) }
 
     var canRenameSelection: Bool {
         guard pinax == nil, selection.count == 1, let item = selectedItems.first else { return false }
