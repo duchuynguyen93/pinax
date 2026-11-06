@@ -54,7 +54,9 @@ struct BrowserRoot: View {
     init(seed: BrowserSeed, env: AppEnvironment) {
         self.seed = seed
         _win = State(initialValue: WindowModel {
-            BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, transfers: env.transfers, home: env.settings.home)
+            let m = BrowserModel(prefs: env.prefs, toast: env.toast, history: env.history, transfers: env.transfers, home: env.settings.home)
+            m.spaceMap = env.spaceMap
+            return m
         })
     }
 
@@ -78,6 +80,10 @@ struct BrowserRoot: View {
                     win.panes.forEach { $0.applyPresetViewMode(mode) }
                 }
                 if let s = Self.takeQASection() { win.primary.showPinax(s) }
+                if let dir = Self.takeQASpaceMap() {
+                    win.primary.showPinax(.spaceMap)
+                    env.spaceMap.scan(URL(fileURLWithPath: dir, isDirectory: true))
+                }
                 await runQATransfer()
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }
@@ -123,11 +129,19 @@ struct BrowserRoot: View {
     }
 
     @MainActor private static var qaSectionConsumed = false
-    /// PINAX_QA_SECTION=uninstall|smartClean|downloads|history (QA, chỉ cửa sổ đầu): mở thẳng một mục Pinax.
+    /// PINAX_QA_SECTION=uninstall|smartClean|downloads|spaceMap|history (QA, chỉ cửa sổ đầu): mở thẳng một mục Pinax.
     @MainActor private static func takeQASection() -> SidebarSection? {
         guard !qaSectionConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_SECTION"], !v.isEmpty else { return nil }
         qaSectionConsumed = true
         return SidebarSection(rawValue: v)
+    }
+
+    @MainActor private static var qaSpaceMapConsumed = false
+    /// PINAX_QA_SPACEMAP=<thư mục> (QA, chỉ cửa sổ đầu): mở Space Map và quét thư mục đó.
+    @MainActor private static func takeQASpaceMap() -> String? {
+        guard !qaSpaceMapConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_SPACEMAP"], !v.isEmpty else { return nil }
+        qaSpaceMapConsumed = true
+        return v
     }
 
     @MainActor private static var qaTransferConsumed = false
@@ -173,6 +187,7 @@ struct BrowserWindowView: View {
                         case .smartClean: SmartCleanView()
                         case .downloads: TidyView()
                         case .uninstall: UninstallView()
+                        case .spaceMap: SpaceMapView(browser: model)
                         case .history: HistoryView()
                         }
                     } else if let second = window.secondary {

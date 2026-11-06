@@ -9,3 +9,4 @@ One file per milestone. Write the plan here before coding. Plans are written in 
 | [M2: File browser](M2-file-browser.md) | Done (0.2.0) | File browser, git-aware path bar, open in Terminal/Editor, entry points (hotkey, Services, Open With, URL scheme). macOS 27 refuses third-party default folder viewers, see plan §0 |
 | [M3: Copy/move, dual pane, workspaces](M3-dual-pane-transfers.md) | Done (0.3.0) | Journaled copy/move queue, Finder clipboard, drag and drop, dual pane, workspaces |
 | [M4: App uninstaller](M4-app-uninstaller.md) | Done (0.4.0) | Uninstall apps with their ~/Library files, cautious App leftovers rule, Quick Look in lists |
+| [M5: Space Map](M5-space-map.md) | Done (0.5.0) | fts-based disk usage tree, drill down, move to Trash, Analyze Size from the browser |

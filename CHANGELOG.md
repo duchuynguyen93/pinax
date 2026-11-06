@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-06
+
+Milestone M5: see what is taking up space.
+
+### Added
+- **Space Map** (sidebar > Pinax): scans your home folder (or any folder you choose) and lists what takes the most space, level by level. A bar shows the largest items; double-click or Return opens a folder, Cmd+Up or the breadcrumb goes back. Sizes are real space on disk: symlinks are not followed, other disks mounted inside are not counted, hard links count once, apps and other packages are one item, and files under 1 MB are grouped per folder. Folders found while the scan runs appear straight away.
+- Move to Trash (Cmd+Delete) from Space Map goes through the same checks and History as everything else, Cmd+Z puts it back. Space previews, the right-click menu has Reveal in Browser and Analyze Here.
+- **Analyze Size** in the browser's right-click menu opens Space Map on that folder.
+
+### Safety
+- Space Map only reads. `~/Library/Containers` and `~/Library/Group Containers` are not opened during a scan (macOS would ask "access data from other apps"); they show as "Not scanned" with a Scan button you press yourself. Folders that need Full Disk Access are listed as unreadable.
+
 ## [0.4.0] - 2026-11-05
 
 Milestone M4: uninstall apps cleanly and find what deleted apps left behind.

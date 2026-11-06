@@ -3,7 +3,7 @@ import Observation
 import PinaxCore
 
 enum SidebarSection: String, CaseIterable, Identifiable {
-    case smartClean, downloads, uninstall, history
+    case smartClean, downloads, uninstall, spaceMap, history
     var id: String { rawValue }
 
     var title: String {
@@ -11,6 +11,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .smartClean: L("Smart Clean", "Dọn dẹp thông minh")
         case .downloads: L("Tidy Downloads", "Sắp xếp Downloads")
         case .uninstall: L("Uninstall Apps", "Gỡ ứng dụng")
+        case .spaceMap: L("Space Map", "Bản đồ dung lượng")
         case .history: L("History", "Lịch sử")
         }
     }
@@ -20,6 +21,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .smartClean: "sparkles"
         case .downloads: "arrow.down.circle"
         case .uninstall: "xmark.app"
+        case .spaceMap: "chart.bar.xaxis"
         case .history: "clock.arrow.circlepath"
         }
     }
@@ -34,6 +36,7 @@ final class AppEnvironment {
     let smart: SmartCleanModel
     let tidy: TidyModel
     let uninstall: UninstallModel
+    let spaceMap: SpaceMapModel
     let prefs = BrowserPrefs()
     let favorites = FavoritesModel()
     let volumes: VolumesModel
@@ -49,9 +52,11 @@ final class AppEnvironment {
         smart = SmartCleanModel(settings: settings, history: history, toast: toast)
         tidy = TidyModel(settings: settings, history: history, toast: toast)
         uninstall = UninstallModel(settings: settings, history: history, toast: toast)
+        spaceMap = SpaceMapModel(settings: settings, history: history, toast: toast)
         toast.undoHandler = { [weak self] batch in self?.undo(batch) }
         tidy.onChanged = { [weak self] in self?.smart.refreshStorage() }
         uninstall.onChanged = { [weak self] in self?.smart.refreshStorage() }
+        spaceMap.onChanged = { [weak self] in self?.smart.refreshStorage() }
     }
 
     func undo(_ batch: Batch) {
@@ -68,6 +73,7 @@ final class AppEnvironment {
             smart.refreshStorage()
             tidy.refresh()
             uninstall.loadApps()
+            spaceMap.markStale()
         }
     }
 

@@ -68,6 +68,9 @@ enum BrowserMenu {
         })
         menu.addItem(ActionMenuItem(L("Copy Path", "Chép đường dẫn"), key: "c", mask: [.option, .command]) { model.copyPath() })
         menu.addItem(ActionMenuItem(L("Show in Finder", "Hiện trong Finder")) { model.showInFinder() })
+        menu.addItem(ActionMenuItem(L("Analyze Size", "Phân tích dung lượng"), enabled: model.spaceMap != nil) {
+            model.analyzeSize(folderTarget)
+        })
         menu.addItem(.separator())
         let terminal = ExternalApps.terminal, editor = ExternalApps.editor
         menu.addItem(ActionMenuItem(L("Open in Terminal", "Mở trong Terminal"), enabled: terminal != nil) {

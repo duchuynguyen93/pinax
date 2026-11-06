@@ -22,6 +22,7 @@ struct PinaxApp: App {
                 .environment(env.smart)
                 .environment(env.tidy)
                 .environment(env.uninstall)
+                .environment(env.spaceMap)
                 .environment(env.history)
                 .environment(env.toast)
                 .environment(env.favorites)
@@ -94,9 +95,11 @@ struct PinaxCommands: Commands {
             }
             .keyboardShortcut("d", modifiers: .command)
             .disabled(browser?.canDuplicateSelection != true)
-            Button(L("Move to Trash", "Chuyển vào Thùng rác")) { browser?.trashSelection() }
-                .keyboardShortcut(.delete, modifiers: .command)
-                .disabled(browser?.canTrashSelection != true)
+            Button(L("Move to Trash", "Chuyển vào Thùng rác")) {
+                if inSpaceMap { env.spaceMap.trashSelection() } else { browser?.trashSelection() }
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(inSpaceMap ? !env.spaceMap.canTrashSelection : browser?.canTrashSelection != true)
             Button(L("Copy to Other Pane", "Chép sang khung kia")) { transferToOtherPane(.copy) }
                 .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF5FunctionKey)!)), modifiers: [])
                 .disabled(!canTransferToOtherPane(.copy))
@@ -141,9 +144,11 @@ struct PinaxCommands: Commands {
             Button(L("Forward", "Tiến tới")) { browser?.forward() }
                 .keyboardShortcut("]", modifiers: .command)
                 .disabled(browser?.canGoForward != true)
-            Button(L("Enclosing Folder", "Thư mục cha")) { browser?.up() }
-                .keyboardShortcut(.upArrow, modifiers: .command)
-                .disabled(browser?.canGoUp != true)
+            Button(L("Enclosing Folder", "Thư mục cha")) {
+                if inSpaceMap { env.spaceMap.up() } else { browser?.up() }
+            }
+            .keyboardShortcut(.upArrow, modifiers: .command)
+            .disabled(inSpaceMap ? !env.spaceMap.canGoUp : browser?.canGoUp != true)
             Divider()
             Button(L("Go to Path…", "Đi tới đường dẫn…")) {
                 if browser?.pinax != nil, let b = browser { b.navigate(to: b.folder) }
@@ -170,6 +175,9 @@ struct PinaxCommands: Commands {
                 get: { env.prefs.sort.foldersFirst }, set: { env.prefs.sort.foldersFirst = $0 }))
         }
     }
+
+    /// Đang ở màn Space Map: ⌘⌫ và ⌘↑ thuộc về nó.
+    private var inSpaceMap: Bool { browser?.pinax == .spaceMap }
 
     private var terminalApp: CatalogApp? { ExternalApps.chosen(ExternalApps.terminals, stored: terminalID) }
     private var editorApp: CatalogApp? { ExternalApps.chosen(ExternalApps.editors, stored: editorID) }

@@ -28,6 +28,8 @@ final class BrowserModel {
     let history: HistoryModel
     let transfers: TransferQueue
     let home: URL
+    /// Gắn khi dựng cửa sổ; menu "Analyze Size" dùng để mở Space Map.
+    @ObservationIgnored weak var spaceMap: SpaceMapModel?
     /// Git ở path bar (chỉ đọc).
     let git = GitStatusModel()
 
@@ -190,6 +192,12 @@ final class BrowserModel {
     func up() {
         guard canGoUp else { return }
         navigate(to: folder.deletingLastPathComponent(), select: folder.path)
+    }
+
+    /// Mở Space Map và quét `url`.
+    func analyzeSize(_ url: URL) {
+        showPinax(.spaceMap)
+        spaceMap?.scan(url)
     }
 
     func showPinax(_ section: SidebarSection) {

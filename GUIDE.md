@@ -77,6 +77,16 @@ Caveats:
 
 Sidebar > Pinax > **Uninstall Apps** lists the apps in /Applications and ~/Applications (Apple apps and Pinax are not listed). Select one, or drop a `.app` onto the screen, to see the app plus what it keeps in `~/Library`. Items found by its bundle id are ticked; items that only match its name, and shared developer group containers, are shown but not ticked. Space previews the focused item. **Move to Trash** asks running apps to quit first, then moves everything ticked to the Trash as one History entry: Cmd+Z puts it all back. An app owned by the system (some App Store apps) cannot be moved by Pinax; drag it to the Trash in Finder, the other items still go.
 
+### Space Map
+
+Sidebar > Pinax > **Space Map** shows what takes up space. Press **Scan Home** or **Choose Folder…**, or right-click a folder in the browser and pick **Analyze Size**. Top-level folders appear as soon as each one is counted; a full home folder with a couple of million files takes about a minute or more, about as long as `du`. Then:
+
+- The bar and the list show the biggest items of the current folder. Double-click or Return opens a folder; Cmd+Up and the breadcrumb go back up.
+- Space previews, Cmd+Delete moves the selection to the Trash (one History entry, Cmd+Z undoes), and the right-click menu has **Reveal in Browser** and **Analyze Here**.
+- Sizes are real space on disk. Symlinks are not followed, other disks are not counted, hard links count once, apps and other packages are a single item, and files under 1 MB are grouped as "smaller files". Two APFS clones of the same file are counted twice (macOS has no cheap way to tell).
+- `Library/Containers` and `Library/Group Containers` are not scanned automatically because macOS would ask for permission to read other apps' data. Press **Scan** on that row if you want them. Folders that need Full Disk Access are shown as unreadable.
+- After an undo the results may be out of date; press **Rescan**.
+
 ## 4. Downloads (Tidy)
 
 The **Downloads** screen previews how loose files in a folder (default `~/Downloads`) would be sorted. Only files directly inside that folder are considered. Untick a type to leave it alone, then press **Tidy** (or Option+Cmd+T). Folders are created only for types that have files, and a toast offers **Undo**.
@@ -203,7 +213,7 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 | Option+Cmd+P | Bring Pinax to the front from any app (changeable in Settings) |
 | Shift+Cmd+N | New Folder (then rename in place) |
 | Return | Rename the selected item (Esc cancels) |
-| Cmd+Delete | Move the selection to the Trash |
+| Cmd+Delete | Move the selection to the Trash (also in Space Map) |
 | Option+Cmd+C | Copy path(s) |
 | Cmd+C / Cmd+V | Copy / paste files (works with Finder) |
 | Option+Cmd+V | Move the copied files here |
@@ -249,7 +259,9 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 
 **Hai khung và Workspace.** Cmd+\\ bật hai khung; Tab đổi khung; F5 chép, F6 chuyển sang khung kia. File > Save Window as Workspace (Ctrl+Cmd+S) lưu các tab của cửa sổ, mở lại từ sidebar hoặc `pinax://workspace?name=…`.
 
-**Gỡ ứng dụng.** Sidebar > Pinax > Gỡ ứng dụng: chọn app (hoặc thả file .app vào) để thấy app cùng các file nó để lại trong `~/Library`; mục khớp bundle id được tick, mục chỉ khớp theo tên thì không. App đang chạy sẽ được hỏi thoát trước. Tất cả vào Thùng rác, Cmd+Z trả lại. Smart Clean có thêm mục *Rác của app đã gỡ* (không tick sẵn, rất thận trọng: bỏ qua app còn cài, công cụ dòng lệnh, thành phần hệ thống, thư mục mới sửa trong 30 ngày).
+**Gỡ ứng dụng.** Sidebar > Pinax > Gỡ ứng dụng: chọn app (hoặc thả file .app vào) để thấy app cùng các file nó để lại trong `~/Library`; mục khớp bundle id được tick, mục chỉ khớp theo tên thì không. App đang chạy sẽ được hỏi thoát trước. Tất cả vào Thùng rác, Cmd+Z trả lại. **Bản đồ dung lượng.** Sidebar > Pinax > Bản đồ dung lượng (hoặc chuột phải một thư mục > Phân tích dung lượng): quét Home hay thư mục bất kỳ, xem cái gì nặng nhất theo từng cấp, nhấp đúp để vào sâu, Cmd+Up để lên. Cmd+Delete đưa vào Thùng rác, Cmd+Z trả lại. Không tự quét `Library/Containers` (macOS sẽ hỏi quyền), muốn thì bấm Scan ở dòng đó.
+
+Smart Clean có thêm mục *Rác của app đã gỡ* (không tick sẵn, rất thận trọng: bỏ qua app còn cài, công cụ dòng lệnh, thành phần hệ thống, thư mục mới sửa trong 30 ngày).
 
 **Lịch sử và Hoàn tác.** Mỗi lần dọn/sắp xếp là một batch, giữ 50 batch gần nhất, còn nguyên sau khi mở lại app. Hoàn tác bằng **Cmd+Z**, nút trên toast hoặc trong màn Lịch sử. Mục bị bỏ qua sẽ có lý do (không còn tồn tại, chỗ cũ đã có file, thư mục không rỗng...).
 
