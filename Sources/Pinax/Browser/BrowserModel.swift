@@ -111,6 +111,8 @@ final class BrowserModel {
     @ObservationIgnored weak var contentView: NSView?
     /// Kích thước thư mục tính nền, dùng chung cho list và icon view.
     @ObservationIgnored let folderSizes = FolderSizeStore()
+    /// Tag màu của các mục đang hiện (nạp lười, xem `TagStore`).
+    @ObservationIgnored let tags = TagStore()
 
     static let viewModeKey = "pinax.browser.viewMode"
     static let iconSizeKey = "pinax.browser.iconSize"
@@ -471,6 +473,7 @@ final class BrowserModel {
         case .success(let listing):
             listed = listing.items
             listedVersion += 1
+            tags.invalidate()
             availableBytes = listing.available
             error = nil
             let shown = rebuildItems()

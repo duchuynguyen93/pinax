@@ -25,6 +25,7 @@ PINAX_QA_SEARCH=<folder|subfolders>:<query> PINAX_OPEN=<dir> Pinax.app/Contents/
 PINAX_QA_BATCH_RENAME=<1|format|replace|add|case> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window selects all items and opens the batch rename sheet in that mode with sample values after the folder loads
 PINAX_QA_PREVIEW=1 PINAX_OPEN=<file|dir> Pinax.app/Contents/MacOS/Pinax   # QA: preview pane on (not saved to prefs); a file path also selects that file
 PINAX_QA_TAG=<tag name, e.g. Red> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window shows the files carrying that Finder tag (Spotlight, home scope) after the folder loads
+PINAX_QA_SCRIPT=<cut|rename|tag|expand> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: ~1s after the folder loads, runs a scripted scenario through the real model functions (cut/rename/tag/expand; see Browser/QAScript.swift), logs `[Pinax QA] ...` to stderr ending in DONE or FAIL; undo only touches the batch it created. PathGuard refuses /tmp (/private), use a folder under $HOME such as ~/PinaxQA
 PINAX_QA_GROUP=kind|modified   # QA: list/icon view start grouped by Kind or Date Modified (not saved to prefs)
 PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```

@@ -87,6 +87,10 @@ struct PreviewPane: View {
             if case .folder(let it, _, _) = result { model.folderSizes.request([it]) }
             expanded = [:]
             loaded = result
+            // PINAX_QA_SCRIPT=expand (QA): tự mở rộng thư mục con đầu tiên.
+            if QAScript.expandsPreview, case .folder(_, let kids, _) = result, let first = kids.first(where: \.isNavigableFolder) {
+                toggle(first)
+            }
         }
     }
 
@@ -271,7 +275,7 @@ struct PreviewPane: View {
             model.folderSizes.request([item])
             if let info = model.folderSizes.info(for: item), let size = info.size {
                 sizeText = Self.bytes(size)
-                if let c = info.count { sizeText = L("\(c) items, ", "\(c) mục, ") + sizeText }
+                if let c = info.count { sizeText = itemsText(c) + ", " + sizeText }
             }
         } else {
             sizeText = item.size.map(Self.bytes) ?? "—"

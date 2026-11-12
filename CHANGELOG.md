@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-12
+
+### Added
+- **Tag dots** next to names in the list and under icons, like Finder (up to three colors; custom tags are gray). Tags are read only for the rows on screen, in the background, so big folders stay fast.
+
+### Fixed
+- In dual pane, the Kind column was cut off at the right edge when the panes were narrow (e.g. with the preview open); columns now shrink to fit each pane.
+- The preview said "1 items" for a folder with one item.
+
 ## [0.9.0] - 2026-11-12
 
 Milestone M9: groups and path bar commands.

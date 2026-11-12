@@ -24,6 +24,16 @@ enum TagSupport {
         }
     }
 
+    @MainActor private static var colorByName: [String: NSColor] = [:]
+
+    /// Màu chấm của tag: 7 tag chuẩn theo tên, tên khác → xám.
+    @MainActor static func color(forTagNamed raw: String) -> NSColor {
+        if colorByName.isEmpty { for t in standard { colorByName[t.name] = t.color } }
+        // Tên có thể mang hậu tố "\n<số màu>" khi đọc thô.
+        let name = raw.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? raw
+        return colorByName[name] ?? .systemGray
+    }
+
     /// Chấm màu cho mục menu / sidebar.
     static func dot(_ color: NSColor, size: CGFloat = 12) -> NSImage {
         let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { r in

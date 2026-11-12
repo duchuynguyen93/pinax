@@ -85,11 +85,48 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
 final class ListCell: NSTableCellView {
     weak var requester: ThumbnailRequester?
     var representedPath: String?
+    /// Chấm tag (chỉ ô Tên); đứng ngay sau chữ, sát mép phải nếu tên bị cắt.
+    let tagDots = TagDotsView()
+    private var dotsGap: NSLayoutConstraint?
+    private var editFill: NSLayoutConstraint?
 
     override func prepareForReuse() {
         super.prepareForReuse()
         MainActor.assumeIsolated { requester?.cancel(self) }
         representedPath = nil
+        setTags([])
+        setRenaming(false)
+    }
+
+    /// Ô Tên: thay ràng buộc phải của chữ bằng "chữ co theo nội dung + chấm tag".
+    func installTagDots() {
+        guard let label = textField else { return }
+        tagDots.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(tagDots)
+        // Chữ không giãn hết ô: ôm nội dung, nhường chỗ cho chấm (chấm không bao giờ bị nén).
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let gap = tagDots.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 0)
+        dotsGap = gap
+        let fill = label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4)
+        fill.isActive = false
+        editFill = fill
+        NSLayoutConstraint.activate([
+            gap,
+            tagDots.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+            tagDots.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    func setTags(_ tags: [String]) {
+        tagDots.tags = tags
+        dotsGap?.constant = tagDots.count == 0 ? 0 : 4
+    }
+
+    /// Đang đổi tên tại chỗ: ô nhập chiếm hết chiều ngang, chấm ẩn.
+    func setRenaming(_ on: Bool) {
+        editFill?.isActive = on
+        tagDots.collapsed = on
+        dotsGap?.constant = tagDots.count == 0 ? 0 : 4
     }
 }
 
@@ -164,7 +201,8 @@ struct FileListView: NSViewRepresentable {
             let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             col.title = title
             col.width = width
-            col.minWidth = min
+            // Hai khung: mỗi khung chỉ ~380 pt, tổng min của bản một khung (≈ 390 pt) không vừa → cột Loại bị cắt.
+            col.minWidth = dual ? Swift.min(min, 56) : min
             col.sortDescriptorPrototype = NSSortDescriptor(key: key.rawValue, ascending: true)
             return col
         }
@@ -201,20 +239,21 @@ struct FileListView: NSViewRepresentable {
             return BrowserKeys.handle(event, model: c.model)
         }
         c.model.folderSizes.observe(c) { [weak c] path in c?.sizeResolved(path) }
+        c.model.tags.observe(c) { [weak c] path in c?.tagsResolved(path) }
         // Khung hẹp lại (mở preview, thu cửa sổ) mà NSTableView không tự co cột Tên → các cột sau bị đẩy ra ngoài.
-        if !dual {
-            scroll.contentView.postsFrameChangedNotifications = true
-            c.frameObserver = NotificationCenter.default.addObserver(
-                forName: NSView.frameDidChangeNotification, object: scroll.contentView, queue: .main) { [weak c] _ in
-                MainActor.assumeIsolated { c?.fitNameColumn() }
-            }
-            DispatchQueue.main.async { [weak c] in c?.fitNameColumn() }
+        // Một khung: cột Tên lấp phần còn lại. Hai khung: co đều mọi cột khi tổng bề rộng lệch khung.
+        scroll.contentView.postsFrameChangedNotifications = true
+        c.frameObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification, object: scroll.contentView, queue: .main) { [weak c] _ in
+            MainActor.assumeIsolated { dual ? c?.fitColumnsUniformly() : c?.fitNameColumn() }
         }
+        if !dual { DispatchQueue.main.async { [weak c] in c?.fitNameColumn() } }
         return scroll
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         coordinator.model.folderSizes.stopObserving(coordinator)
+        coordinator.model.tags.stopObserving(coordinator)
         coordinator.thumbs.cancelAll()
     }
 
@@ -242,6 +281,15 @@ struct FileListView: NSViewRepresentable {
             let spacing = table.intercellSpacing.width * CGFloat(visible.count)
             let target = max(name.minWidth, clip.bounds.width - others - spacing)
             if abs(name.width - target) > 0.5 { name.width = target }
+        }
+
+        /// Hai khung: sizeToFit khi bề rộng khung lệch tổng các cột > 1 pt (sizeToFit đặt đúng bề rộng nên không lặp vô hạn).
+        func fitColumnsUniformly() {
+            guard let table, let clip = table.enclosingScrollView?.contentView else { return }
+            let visible = table.tableColumns.filter { !$0.isHidden }
+            guard !visible.isEmpty else { return }
+            let total = visible.reduce(CGFloat(0)) { $0 + $1.width } + table.intercellSpacing.width * CGFloat(visible.count)
+            if abs(clip.bounds.width - total) > 1 { table.sizeToFit() }
         }
         private var items: [FileItem] = []
         /// Dòng bảng: tiêu đề nhóm hoặc chỉ số trong `items`. Không nhóm → toàn `.item`.
@@ -306,6 +354,15 @@ struct FileListView: NSViewRepresentable {
             let col = table.column(withIdentifier: NSUserInterfaceItemIdentifier("size"))
             guard col >= 0 else { return }
             table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
+        }
+
+        /// Tag của một mục vừa nạp xong → cập nhật chấm của đúng ô Tên đang hiện (không reload, không đụng ô đang đổi tên).
+        func tagsResolved(_ path: String) {
+            guard let table, editing?.path != path, let row = rowByPath[path] else { return }
+            let col = table.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+            guard col >= 0, let cell = table.view(atColumn: col, row: row, makeIfNecessary: false) as? ListCell,
+                  cell.representedPath == path else { return }
+            cell.setTags(model.tags.tags(for: path) ?? [])
         }
 
         func sync(generation: Int, resetToken: Int, revealToken: Int, sort: FileSort, pathEditing: Bool, renameToken: Int = 0,
@@ -386,10 +443,11 @@ struct FileListView: NSViewRepresentable {
                   let field = cell.textField else { return }
             field.isEditable = true
             field.delegate = self
+            cell.setRenaming(true)
             editing = (path, item.name)
             cancelled = false
             guard table.window?.makeFirstResponder(field) == true else {
-                editing = nil; field.isEditable = false; return
+                editing = nil; field.isEditable = false; cell.setRenaming(false); return
             }
             field.currentEditor()?.selectedRange = NSRange(
                 location: 0, length: FileNameSelection.length(of: item.name, stripExtension: !item.isNavigableFolder))
@@ -400,6 +458,7 @@ struct FileListView: NSViewRepresentable {
             editing = nil
             field.isEditable = false
             field.delegate = nil
+            if let cell = field.superview as? ListCell { cell.setRenaming(false) }
             let text = field.stringValue
             if cancelled || text == e.original || !model.commitRename(path: e.path, to: text) {
                 field.stringValue = e.original
@@ -453,6 +512,8 @@ struct FileListView: NSViewRepresentable {
             case "name":
                 text = item.name
                 cell.representedPath = item.url.path
+                cell.setTags(model.tags.tags(for: item.url.path) ?? [])
+                model.tags.request([item.url.path])
                 let scale = tableView.window?.backingScaleFactor ?? 2
                 if let img = thumbs.cached(item, points: Self.iconPoints, scale: scale) {
                     thumbs.cancel(cell)
@@ -492,6 +553,7 @@ struct FileListView: NSViewRepresentable {
             cell.textField = label
             cell.addSubview(label)
             if hasIcon {
+                cell.installTagDots()
                 let icon = NSImageView()
                 icon.translatesAutoresizingMaskIntoConstraints = false
                 cell.imageView = icon
@@ -509,10 +571,13 @@ struct FileListView: NSViewRepresentable {
                 label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2).isActive = true
                 if id.rawValue == "size" { label.alignment = .right }
             }
-            NSLayoutConstraint.activate([
-                label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-                label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            ])
+            // Ô Tên: chữ ôm nội dung (≤ mép phải) để chấm tag đứng ngay sau; ô khác giãn hết.
+            if hasIcon {
+                label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4).isActive = true
+            } else {
+                label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4).isActive = true
+            }
+            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor).isActive = true
             return cell
         }
 

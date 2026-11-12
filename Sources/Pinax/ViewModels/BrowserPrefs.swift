@@ -44,6 +44,7 @@ final class BrowserPrefs {
         showHidden = ud.bool(forKey: Self.hiddenKey)
         // PINAX_QA_PREVIEW=1 (QA): bật xem trước mà không ghi đè tuỳ chọn đã lưu.
         showPreview = ud.bool(forKey: Self.previewKey) || ProcessInfo.processInfo.environment["PINAX_QA_PREVIEW"] == "1"
+            || ProcessInfo.processInfo.environment["PINAX_QA_SCRIPT"] == "expand"
         // PINAX_QA_GROUP=kind|modified (QA): bắt đầu với kiểu nhóm đó mà không ghi đè tuỳ chọn đã lưu
         // (gán trong init không kích hoạt didSet).
         groupBy = ProcessInfo.processInfo.environment["PINAX_QA_GROUP"].flatMap(GroupBy.init(rawValue:))

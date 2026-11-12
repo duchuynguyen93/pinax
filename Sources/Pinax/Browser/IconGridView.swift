@@ -79,8 +79,15 @@ final class IconItemView: NSView {
     let subtitle = NSTextField(labelWithString: "")
     var iconPoints: CGFloat = 80 { didSet { needsLayout = true } }
     var selected = false { didSet { needsDisplay = true } }
+    /// Chấm tag màu: giữa ô, ngay dưới icon (trên tên).
+    let tagDots = TagDotsView()
 
     override var isFlipped: Bool { true }
+
+    func setTags(_ tags: [String]) {
+        tagDots.tags = tags
+        needsLayout = true
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -95,7 +102,7 @@ final class IconItemView: NSView {
         subtitle.font = .systemFont(ofSize: 10)
         subtitle.textColor = .secondaryLabelColor
         subtitle.lineBreakMode = .byTruncatingTail
-        for v in [imageView, title, subtitle] { addSubview(v) }
+        for v in [imageView, title, subtitle, tagDots] { addSubview(v) }
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -106,6 +113,8 @@ final class IconItemView: NSView {
         imageView.frame = NSRect(x: (w - iconPoints) / 2, y: 4, width: iconPoints, height: iconPoints)
         title.frame = NSRect(x: 4, y: iconPoints + 8, width: w - 8, height: 30)
         subtitle.frame = NSRect(x: 4, y: iconPoints + 38, width: w - 8, height: 14)
+        let dots = tagDots.intrinsicContentSize
+        tagDots.frame = NSRect(x: (w - dots.width) / 2, y: iconPoints - 2, width: dots.width, height: dots.height)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -166,6 +175,7 @@ final class IconItem: NSCollectionViewItem {
         super.prepareForReuse()
         MainActor.assumeIsolated { requester?.cancel(self) }
         representedPath = nil
+        itemView.setTags([])
     }
 }
 
@@ -219,6 +229,7 @@ struct IconGridView: NSViewRepresentable {
         scroll.drawsBackground = false
         c.collection = collection
         c.model.folderSizes.observe(c) { [weak c] path in c?.sizeResolved(path) }
+        c.model.tags.observe(c) { [weak c] path in c?.tagsResolved(path) }
         return scroll
     }
 
@@ -233,6 +244,7 @@ struct IconGridView: NSViewRepresentable {
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         coordinator.model.folderSizes.stopObserving(coordinator)
+        coordinator.model.tags.stopObserving(coordinator)
         coordinator.thumbs.cancelAll()
     }
 
@@ -432,6 +444,13 @@ struct IconGridView: NSViewRepresentable {
             cell.itemView.subtitle.stringValue = Self.subtitle(item, model: model)
         }
 
+        /// Tag của một mục vừa nạp xong → cập nhật chấm của đúng ô đang hiện.
+        func tagsResolved(_ path: String) {
+            guard let collection, let ip = indexByPath[path],
+                  let cell = collection.item(at: ip) as? IconItem, cell.representedPath == path else { return }
+            cell.itemView.setTags(model.tags.tags(for: path) ?? [])
+        }
+
         static func subtitle(_ item: FileItem, model: BrowserModel) -> String {
             guard item.isDirectory, !item.isSymlink, !item.isAlias else { return "" }
             guard let info = model.folderSizes.info(for: item) else { return "…" }
@@ -491,6 +510,8 @@ struct IconGridView: NSViewRepresentable {
             view.selected = cell.isSelected
             cell.requester = thumbs
             cell.representedPath = item.url.path
+            view.setTags(model.tags.tags(for: item.url.path) ?? [])
+            model.tags.request([item.url.path])
 
             let scale = collectionView.window?.backingScaleFactor ?? 2
             if let img = thumbs.cached(item, points: points, scale: scale) {

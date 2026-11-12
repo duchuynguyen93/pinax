@@ -87,6 +87,7 @@ struct BrowserRoot: View {
                 await runQASearch()
                 await runQABatchRename()
                 await runQATransfer()
+                await QAScript.run(window: win, env: env)
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }
             .onChange(of: win.secondary?.folder.path ?? "") {

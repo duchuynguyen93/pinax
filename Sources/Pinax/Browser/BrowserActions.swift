@@ -44,6 +44,7 @@ extension BrowserModel {
             if failed > 0 {
                 toast.show(L("Couldn't change the tag on \(failed) items", "Không đổi được tag của \(failed) mục"))
             }
+            tags.forget(urls.map(\.path))
             reload()
         }
     }
