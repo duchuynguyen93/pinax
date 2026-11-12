@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-12
+
+Milestone M9: groups and path bar commands.
+
+### Added
+- **Group By** (View > Group By, Ctrl+Cmd+0 / 2 / 5, or the toolbar button): group the list or icon view by **Kind** (Folders, Applications, Documents, PDF, Spreadsheets, Presentations, Images, Movies, Music, Archives, Disk Images, Source Code, Other) or **Date Modified** (Today, Yesterday, Previous 7 Days, Previous 30 Days, then months of this year and earlier years). Group headers stay pinned while scrolling; the current sort applies inside each group. Also works on search and tag results.
+- **Path bar commands**: in the Cmd+L field, `code .`, `cursor .`, `>term`, `>finder ~/Downloads` and more open the folder in that app. Start with `>` to force command mode; Tab completes command names. Pinax only opens the folder with the app (NSWorkspace); it never runs a shell.
+
 ## [0.8.0] - 2026-11-12
 
 Milestone M8: preview pane, cut and paste, cloud drives and tags in the sidebar.

@@ -10,15 +10,22 @@ struct PathBar: View {
     var isActive = true
     @State private var suggestions: [String] = []
     @State private var suggestionIndex: Int?
+    /// Text đang gõ bắt đầu bằng ">" → ô ở chế độ lệnh (icon terminal).
+    @State private var commandMode = false
 
     var body: some View {
         HStack(spacing: 8) {
             if model.pathEditing {
-                Image(nsImage: IconCache.shared.icon(forPath: model.folder.path))
+                if commandMode {
+                    Image(systemName: "terminal").frame(width: 16, height: 16)
+                } else {
+                    Image(nsImage: IconCache.shared.icon(forPath: model.folder.path))
+                }
                 PathField(initialText: Self.editText(model.folder),
-                          onSubmit: { model.go(toPath: $0) },
-                          onCancel: { model.pathEditing = false; suggestions = [] },
-                          onSuggestions: { suggestions = $0; suggestionIndex = $1 })
+                          onSubmit: { submit($0) },
+                          onCancel: { model.pathEditing = false; suggestions = []; commandMode = false },
+                          onSuggestions: { suggestions = $0; suggestionIndex = $1 },
+                          onTextChange: { commandMode = $0.trimmingCharacters(in: .whitespaces).hasPrefix(">") })
                     .id(model.folder.path + "#edit")
             } else {
                 crumbs
@@ -38,6 +45,25 @@ struct PathBar: View {
         .onTapGesture { if !model.pathEditing { model.pathEditing = true } }
         .overlay(alignment: .topLeading) { suggestionList.offset(y: 30) }
         .zIndex(1)
+    }
+
+    /// Return ở ô đường dẫn. ">" → chỉ thử lệnh; không có ">" → đường dẫn trước, không đi được thì thử lệnh.
+    /// Trả false → ô lắc. Lệnh chạy xong thì đóng ô, không điều hướng.
+    private func submit(_ text: String) -> Bool {
+        let forced = text.trimmingCharacters(in: .whitespaces).hasPrefix(">")
+        if !forced, model.go(toPath: text) { return true }
+        switch model.runPathCommand(text) {
+        case true?:
+            model.pathEditing = false
+            suggestions = []
+            commandMode = false
+            return true
+        case false?:
+            return false
+        case nil:
+            if forced { model.toast.show(L("Unknown command", "Lệnh không rõ")) }
+            return false
+        }
     }
 
     /// Git: `⎇ nhánh ↑1 ↓2 · 3 thay đổi`; ẩn khi không phải repo.

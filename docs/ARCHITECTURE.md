@@ -74,6 +74,8 @@ Batch rename (M7): every rename is an `Executor` move that never overwrites; swa
 
 Tags (M8) are written with `NSURL.setResourceValue(_:forKey: .tagNamesKey)` directly, not through `Executor` or the journal: a tag changes neither content nor location, and toggling it again is the undo. They are only written on items `FileOps.canModify` allows. Cut (Cmd+X) is a Copy plus an in-memory marker; Cmd+V turns into a normal journaled move.
 
+Path bar commands (M9, `PathCommand`) never run a shell: a command only maps to bundle ids and the folder is opened with `NSWorkspace.open(_:withApplicationAt:)`. Grouping (M9, `FileGrouping`) only reorders `BrowserModel.items`; the list and icon views map table rows / index paths back to that flat array.
+
 Implementation notes: comparisons in `PathGuard` are case-insensitive (APFS default); `Executor` additionally refuses symlinks and protected app bundles regardless of where a candidate came from; Tidy never overwrites a destination. The single permitted `removeItem` is in `Executor.removeIfEmpty`, for empty directories Pinax itself created during Tidy.
 
 ## Testing strategy

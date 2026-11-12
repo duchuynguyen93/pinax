@@ -115,6 +115,42 @@ final class IconItemView: NSView {
     }
 }
 
+/// Tiêu đề nhóm ghim đầu section: "Hình ảnh  12".
+final class GroupHeaderView: NSView, NSCollectionViewElement {
+    static let identifier = NSUserInterfaceItemIdentifier("pinax.groupHeader")
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -14),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateLayer() {
+        // Ghim đè lên ô đang cuộn qua → nền gần đặc để chữ không dính nhau.
+        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.92).cgColor
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    func configure(title: String, count: Int) {
+        let s = NSMutableAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.labelColor])
+        s.append(NSAttributedString(string: "  \(count)", attributes: [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
+        label.attributedStringValue = s
+    }
+}
+
 final class IconItem: NSCollectionViewItem {
     weak var requester: ThumbnailRequester?
     var representedPath: String?
@@ -152,6 +188,8 @@ struct IconGridView: NSViewRepresentable {
         layout.minimumLineSpacing = 8
         layout.sectionInset = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         layout.itemSize = NSSize(width: iconSize.cellWidth, height: iconSize.cellHeight)
+        layout.headerReferenceSize = .zero
+        layout.sectionHeadersPinToVisibleBounds = true
 
         let collection = BrowserCollectionView()
         collection.collectionViewLayout = layout
@@ -161,6 +199,8 @@ struct IconGridView: NSViewRepresentable {
         collection.dataSource = c
         collection.delegate = c
         collection.register(IconItem.self, forItemWithIdentifier: Coordinator.itemID)
+        collection.register(GroupHeaderView.self, forSupplementaryViewOfKind: NSCollectionView.elementKindSectionHeader,
+                            withIdentifier: GroupHeaderView.identifier)
         collection.keyHandler = { [weak c] e in c.map { BrowserKeys.handle(e, model: $0.model) } ?? false }
         collection.onOpen = { [weak c] in c?.model.openSelection() }
         collection.onTypeSelect = { [weak c] s in c?.typeSelect(s) }
@@ -203,7 +243,34 @@ struct IconGridView: NSViewRepresentable {
         weak var collection: BrowserCollectionView?
         let thumbs = ThumbnailRequester()
         private var items: [FileItem] = []
-        private var indexByPath: [String: Int] = [:]
+        /// Section = nhóm; không nhóm → một span phủ hết, không header.
+        private var sections: [BrowserModel.GroupSpan] = []
+        private var isGrouped = false
+        private var indexByPath: [String: IndexPath] = [:]
+
+        /// IndexPath → chỉ số trong `items` (nil nếu ngoài phạm vi).
+        func flatIndex(_ ip: IndexPath) -> Int? {
+            guard ip.section >= 0, ip.section < sections.count, ip.item >= 0, ip.item < sections[ip.section].count else { return nil }
+            return sections[ip.section].start + ip.item
+        }
+
+        /// Chỉ số trong `items` → IndexPath (tìm nhị phân theo `start` của section).
+        func indexPath(forFlat i: Int) -> IndexPath? {
+            guard i >= 0, i < items.count, !sections.isEmpty else { return nil }
+            var lo = 0, hi = sections.count - 1
+            while lo < hi {
+                let mid = (lo + hi + 1) / 2
+                if sections[mid].start <= i { lo = mid } else { hi = mid - 1 }
+            }
+            return IndexPath(item: i - sections[lo].start, section: lo)
+        }
+
+        private func item(at ip: IndexPath) -> FileItem? { flatIndex(ip).map { items[$0] } }
+
+        /// Vạch chèn ở cuối section cuối.
+        private var endIndexPath: IndexPath {
+            IndexPath(item: sections.last?.count ?? 0, section: max(sections.count - 1, 0))
+        }
         private var lastGeneration = -1, lastReset = -1, lastReveal = -1
         private var lastSize: IconSize?
         private var wasEditingPath = false
@@ -228,8 +295,8 @@ struct IconGridView: NSViewRepresentable {
         private func refreshCutState() {
             guard let collection else { return }
             for case let cell as IconItem in collection.visibleItems() {
-                guard let path = cell.representedPath, let i = indexByPath[path], i < items.count else { continue }
-                cell.itemView.alphaValue = (items[i].isHidden ? 0.6 : 1) * ClipboardCut.alpha(path)
+                guard let path = cell.representedPath, let ip = indexByPath[path], let item = item(at: ip) else { continue }
+                cell.itemView.alphaValue = (item.isHidden ? 0.6 : 1) * ClipboardCut.alpha(path)
             }
         }
 
@@ -253,13 +320,23 @@ struct IconGridView: NSViewRepresentable {
                 lastGeneration = generation
                 if resetToken != lastReset { thumbs.cancelAll() }
                 items = model.items
-                indexByPath = Dictionary(items.enumerated().map { ($1.url.path, $0) }, uniquingKeysWith: { a, _ in a })
+                let groups = model.groups
+                isGrouped = !groups.isEmpty
+                sections = isGrouped ? groups : [BrowserModel.GroupSpan(title: "", start: 0, count: items.count)]
+                var byPath: [String: IndexPath] = [:]
+                byPath.reserveCapacity(items.count)
+                for (s, span) in sections.enumerated() {
+                    for k in 0..<span.count where byPath[items[span.start + k].url.path] == nil {
+                        byPath[items[span.start + k].url.path] = IndexPath(item: k, section: s)
+                    }
+                }
+                indexByPath = byPath
                 needsReload = true
             }
             guard needsReload, editing == nil else { finishFocus(pathEditing); startPendingRename(); return }
 
             collection.reloadData()
-            let paths = Set(model.selection.compactMap { indexByPath[$0] }.map { IndexPath(item: $0, section: 0) })
+            let paths = Set(model.selection.compactMap { indexByPath[$0] })
             collection.selectionIndexPaths = paths
             if resetToken != lastReset {
                 lastReset = resetToken
@@ -292,14 +369,12 @@ struct IconGridView: NSViewRepresentable {
         // MARK: Đổi tên tại chỗ (ô tên trở thành field soạn thảo ngay dưới icon)
 
         private func beginRename(path: String) {
-            guard let collection, let i = indexByPath[path], i < items.count else { return }
-            let ip = IndexPath(item: i, section: 0)
+            guard let collection, let ip = indexByPath[path], let item = item(at: ip) else { return }
             collection.selectionIndexPaths = [ip]
             publishSelection()
             collection.scrollToItems(at: [ip], scrollPosition: .nearestHorizontalEdge)
             collection.layoutSubtreeIfNeeded()
             guard let cell = collection.item(at: ip) as? IconItem else { return }
-            let item = items[i]
             let field = cell.itemView.title
             field.isEditable = true
             field.isSelectable = true
@@ -352,9 +427,9 @@ struct IconGridView: NSViewRepresentable {
 
         /// Thư mục tính xong → cập nhật dòng phụ của đúng ô đang hiện (không reload).
         func sizeResolved(_ path: String) {
-            guard let collection, let i = indexByPath[path], i < items.count,
-                  let cell = collection.item(at: IndexPath(item: i, section: 0)) as? IconItem else { return }
-            cell.itemView.subtitle.stringValue = Self.subtitle(items[i], model: model)
+            guard let collection, let ip = indexByPath[path], let item = item(at: ip),
+                  let cell = collection.item(at: ip) as? IconItem else { return }
+            cell.itemView.subtitle.stringValue = Self.subtitle(item, model: model)
         }
 
         static func subtitle(_ item: FileItem, model: BrowserModel) -> String {
@@ -367,9 +442,9 @@ struct IconGridView: NSViewRepresentable {
 
         func typeSelect(_ prefix: String) {
             guard let collection,
-                  let i = items.firstIndex(where: { $0.name.range(of: prefix, options: [.caseInsensitive, .diacriticInsensitive, .anchored]) != nil })
+                  let i = items.firstIndex(where: { $0.name.range(of: prefix, options: [.caseInsensitive, .diacriticInsensitive, .anchored]) != nil }),
+                  let ip = indexPath(forFlat: i)
             else { return }
-            let ip = IndexPath(item: i, section: 0)
             collection.selectionIndexPaths = [ip]
             collection.scrollToItems(at: [ip], scrollPosition: .nearestHorizontalEdge)
             publishSelection()
@@ -377,18 +452,35 @@ struct IconGridView: NSViewRepresentable {
 
         private func publishSelection() {
             guard !isUpdating, let collection else { return }
-            model.selection = Set(collection.selectionIndexPaths.compactMap { $0.item < items.count ? items[$0.item].url.path : nil })
+            model.selection = Set(collection.selectionIndexPaths.compactMap { item(at: $0)?.url.path })
         }
 
         // MARK: Data source
 
-        func numberOfSections(in collectionView: NSCollectionView) -> Int { 1 }
+        func numberOfSections(in collectionView: NSCollectionView) -> Int { sections.count }
 
-        func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int { items.count }
+        func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
+            section < sections.count ? sections[section].count : 0
+        }
+
+        func collectionView(_ collectionView: NSCollectionView, viewForSupplementaryElementOfKind kind: NSCollectionView.SupplementaryElementKind,
+                            at indexPath: IndexPath) -> NSView {
+            let header = collectionView.makeSupplementaryView(ofKind: kind, withIdentifier: GroupHeaderView.identifier, for: indexPath)
+            if let header = header as? GroupHeaderView, indexPath.section < sections.count {
+                let g = sections[indexPath.section]
+                header.configure(title: g.title, count: g.count)
+            }
+            return header
+        }
+
+        func collectionView(_ collectionView: NSCollectionView, layout collectionViewLayout: NSCollectionViewLayout,
+                            referenceSizeForHeaderInSection section: Int) -> NSSize {
+            isGrouped ? NSSize(width: collectionView.bounds.width, height: 28) : .zero
+        }
 
         func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
             let cell = collectionView.makeItem(withIdentifier: Self.itemID, for: indexPath) as! IconItem
-            let item = items[indexPath.item]
+            guard let item = item(at: indexPath) else { return cell }
             let size = model.iconSize
             let points = size.points
             let view = cell.itemView
@@ -421,25 +513,25 @@ struct IconGridView: NSViewRepresentable {
 
         /// Không bắt đầu kéo khi đang đổi tên.
         func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            guard editing == nil, indexPath.item < items.count else { return nil }
-            return items[indexPath.item].url as NSURL
+            guard editing == nil, let item = item(at: indexPath) else { return nil }
+            return item.url as NSURL
         }
 
         func collectionView(_ collectionView: NSCollectionView, validateDrop draggingInfo: NSDraggingInfo,
                             proposedIndexPath proposedDropIndexPath: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
                             dropOperation proposedDropOperation: UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
             let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
-            let i = proposedDropIndexPath.pointee.item
+            let target = item(at: proposedDropIndexPath.pointee as IndexPath)
             var dest = model.folder
             var onBackground = false
-            if proposedDropOperation.pointee == .on, i >= 0, i < items.count, items[i].isNavigableFolder,
-               !sources.contains(where: { $0.standardizedFileURL.path == items[i].url.standardizedFileURL.path }) {
-                dest = items[i].url
+            if proposedDropOperation.pointee == .on, let target, target.isNavigableFolder,
+               !sources.contains(where: { $0.standardizedFileURL.path == target.url.standardizedFileURL.path }) {
+                dest = target.url
             } else {
                 onBackground = true
                 // Thả vào chỗ khác → thư mục đang xem; đưa vạch chèn về cuối.
                 proposedDropOperation.pointee = .before
-                proposedDropIndexPath.pointee = IndexPath(item: items.count, section: 0) as NSIndexPath
+                proposedDropIndexPath.pointee = endIndexPath as NSIndexPath
             }
             guard model.pinax == nil, !onBackground || model.backgroundDropAllowed,
                   let kind = model.dropKind(sources: sources, destination: dest, mask: draggingInfo.draggingSourceOperationMask)
@@ -452,8 +544,8 @@ struct IconGridView: NSViewRepresentable {
             let sources = BrowserModel.fileURLs(from: draggingInfo.draggingPasteboard)
             var dest = model.folder
             var onBackground = true
-            if dropOperation == .on, indexPath.item < items.count, items[indexPath.item].isNavigableFolder {
-                dest = items[indexPath.item].url
+            if dropOperation == .on, let target = item(at: indexPath), target.isNavigableFolder {
+                dest = target.url
                 onBackground = false
             }
             guard !onBackground || model.backgroundDropAllowed,

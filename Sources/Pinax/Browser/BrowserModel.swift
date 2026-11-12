@@ -49,6 +49,14 @@ final class BrowserModel {
     private(set) var pinax: SidebarSection?
     /// Cái đang hiển thị: danh sách thư mục, đã lọc / thay bằng kết quả khi đang tìm.
     private(set) var items: [FileItem] = []
+    /// Một nhóm liên tiếp trong `items` (start/count là chỉ số trong `items`).
+    struct GroupSpan: Equatable {
+        let title: String
+        let start: Int
+        let count: Int
+    }
+    /// Rỗng = không nhóm. `items` luôn là thứ tự hiển thị thật (đã nối theo nhóm).
+    private(set) var groups: [GroupSpan] = []
     /// Tăng mỗi khi `items` đổi → bảng nạp lại.
     private(set) var generation = 0
     /// Tăng khi sang thư mục mới → bảng cuộn lên đầu.
@@ -167,6 +175,16 @@ final class BrowserModel {
         let ud = UserDefaults.standard
         viewMode = BrowserViewMode(rawValue: ud.string(forKey: Self.viewModeKey) ?? "") ?? .list
         iconSize = IconSize(rawValue: ud.object(forKey: Self.iconSizeKey) as? Int ?? 1) ?? .medium
+        groupingObserver = NotificationCenter.default.addObserver(
+            forName: BrowserPrefs.groupingChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { _ = self?.rebuildItems() }
+        }
+    }
+
+    @ObservationIgnored private var groupingObserver: NSObjectProtocol?
+
+    isolated deinit {
+        if let groupingObserver { NotificationCenter.default.removeObserver(groupingObserver) }
     }
 
     // MARK: Trạng thái dẫn xuất
@@ -523,10 +541,68 @@ final class BrowserModel {
         } else {
             items = results
         }
+        applyGrouping()
         let shown = Set(items.map { $0.url.path })
         selection.formIntersection(shown)
         generation += 1
         return shown
+    }
+
+    /// Nếu đang nhóm: sắp lại `items` theo nhóm (giữ thứ tự trong nhóm) và dựng `groups`.
+    private func applyGrouping() {
+        let by = prefs.groupBy
+        guard by != .none, pinax == nil, !items.isEmpty else { groups = []; return }
+        let grouped = FileGrouping.group(items, by: by)
+        var flat: [FileItem] = []
+        flat.reserveCapacity(items.count)
+        var spans: [GroupSpan] = []
+        spans.reserveCapacity(grouped.count)
+        for g in grouped {
+            spans.append(GroupSpan(title: Self.groupTitle(g.key), start: flat.count, count: g.items.count))
+            flat.append(contentsOf: g.items)
+        }
+        items = flat
+        groups = spans
+    }
+
+    private static func groupTitle(_ key: GroupKey) -> String {
+        switch key {
+        case .kind(let k):
+            switch k {
+            case .folder: L("Folders", "Thư mục")
+            case .application: L("Applications", "Ứng dụng")
+            case .document: L("Documents", "Tài liệu")
+            case .pdf: L("PDF Documents", "Tài liệu PDF")
+            case .spreadsheet: L("Spreadsheets", "Bảng tính")
+            case .presentation: L("Presentations", "Bản trình chiếu")
+            case .image: L("Images", "Hình ảnh")
+            case .movie: L("Movies", "Video")
+            case .music: L("Music", "Âm thanh")
+            case .archive: L("Archives", "File nén")
+            case .diskImage: L("Disk Images", "Ảnh đĩa")
+            case .sourceCode: L("Source Code", "Mã nguồn")
+            case .other: L("Other", "Khác")
+            }
+        case .date(let d):
+            switch d {
+            case .today: L("Today", "Hôm nay")
+            case .yesterday: L("Yesterday", "Hôm qua")
+            case .previous7Days: L("Previous 7 Days", "7 ngày trước")
+            case .previous30Days: L("Previous 30 Days", "30 ngày trước")
+            case .month(let y, let m):
+                FileItem.capitalizingFirst(monthName(year: y, month: m))
+            case .year(let y): String(y)
+            case .unknown: L("Unknown Date", "Không rõ ngày")
+            }
+        }
+    }
+
+    private static func monthName(year: Int, month: Int) -> String {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("LLLL")
+        let date = Calendar.current.date(from: DateComponents(year: year, month: month, day: 1)) ?? Date()
+        return f.string(from: date)
     }
 
     private func cancelSearch() {

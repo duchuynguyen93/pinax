@@ -40,6 +40,8 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
     weak var model: BrowserModel?
     /// Phím riêng của trình duyệt (Space, ⌘↓); trả true nếu đã xử lý.
     var keyHandler: ((NSEvent) -> Bool)?
+    /// Dòng tiêu đề nhóm: chuột phải coi như chỗ trống.
+    var isHeaderRow: ((Int) -> Bool)?
 
     override func keyDown(with event: NSEvent) {
         if keyHandler?(event) == true { return }
@@ -70,7 +72,7 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
         model?.onActivate?()
         // Như Finder: chuột phải vào mục chưa chọn → chọn riêng mục đó; vào chỗ trống → bỏ chọn.
         let row = row(at: convert(event.locationInWindow, from: nil))
-        if row >= 0 {
+        if row >= 0, isHeaderRow?(row) != true {
             if !isRowSelected(row) { selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false) }
         } else {
             deselectAll(nil)
@@ -88,6 +90,36 @@ final class ListCell: NSTableCellView {
         super.prepareForReuse()
         MainActor.assumeIsolated { requester?.cancel(self) }
         representedPath = nil
+    }
+}
+
+/// Ô tiêu đề nhóm: "Hình ảnh  12".
+final class GroupHeaderCell: NSTableCellView {
+    static let identifier = NSUserInterfaceItemIdentifier("groupHeader")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        identifier = Self.identifier
+        let label = NSTextField(labelWithString: "")
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.lineBreakMode = .byTruncatingTail
+        textField = label
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -6),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    func configure(title: String, count: Int) {
+        let s = NSMutableAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.labelColor])
+        s.append(NSAttributedString(string: "  \(count)", attributes: [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
+        textField?.attributedStringValue = s
     }
 }
 
@@ -112,6 +144,7 @@ struct FileListView: NSViewRepresentable {
         table.style = .fullWidth
         table.usesAlternatingRowBackgroundColors = true
         table.allowsMultipleSelection = true
+        table.floatsGroupRows = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
         // Hai khung: mỗi khung hẹp → co đều mọi cột và lưu độ rộng riêng, không thì cột Name đẩy các cột khác ra ngoài.
@@ -161,6 +194,7 @@ struct FileListView: NSViewRepresentable {
         c.table = table
         table.model = model
         model.contentView = table
+        table.isHeaderRow = { [weak c] row in c?.item(atRow: row) == nil }
         table.menuProvider = { [weak c] _ in c.map { BrowserMenu.make(model: $0.model) } }
         table.keyHandler = { [weak c] event in
             guard let c else { return false }
@@ -210,6 +244,27 @@ struct FileListView: NSViewRepresentable {
             if abs(name.width - target) > 0.5 { name.width = target }
         }
         private var items: [FileItem] = []
+        /// Dòng bảng: tiêu đề nhóm hoặc chỉ số trong `items`. Không nhóm → toàn `.item`.
+        private enum Row { case header(BrowserModel.GroupSpan), item(Int) }
+        private var rows: [Row] = []
+
+        /// Mục ở dòng bảng; nil với tiêu đề nhóm hoặc ngoài phạm vi.
+        func item(atRow row: Int) -> FileItem? {
+            guard row >= 0, row < rows.count, case .item(let i) = rows[row], i < items.count else { return nil }
+            return items[i]
+        }
+
+        private static func buildRows(count: Int, groups: [BrowserModel.GroupSpan]) -> [Row] {
+            guard !groups.isEmpty else { return (0..<count).map { .item($0) } }
+            var out: [Row] = []
+            out.reserveCapacity(count + groups.count)
+            for g in groups {
+                out.append(.header(g))
+                for i in g.start..<g.start + g.count { out.append(.item(i)) }
+            }
+            return out
+        }
+        /// path -> chỉ số dòng bảng (đã tính dòng tiêu đề).
         private var rowByPath: [String: Int] = [:]
         private var lastGeneration = -1, lastReset = -1, lastReveal = -1
         private var wasEditingPath = false
@@ -279,7 +334,13 @@ struct FileListView: NSViewRepresentable {
                 lastGeneration = generation
                 if resetToken != lastReset { thumbs.cancelAll() }
                 items = model.items
-                rowByPath = Dictionary(items.enumerated().map { ($1.url.path, $0) }, uniquingKeysWith: { a, _ in a })
+                rows = Self.buildRows(count: items.count, groups: model.groups)
+                var byPath: [String: Int] = [:]
+                byPath.reserveCapacity(items.count)
+                for (r, row) in rows.enumerated() {
+                    if case .item(let i) = row, byPath[items[i].url.path] == nil { byPath[items[i].url.path] = r }
+                }
+                rowByPath = byPath
                 table.reloadData()
                 let rows = IndexSet(model.selection.compactMap { rowByPath[$0] })
                 table.selectRowIndexes(rows, byExtendingSelection: false)
@@ -316,10 +377,9 @@ struct FileListView: NSViewRepresentable {
         // MARK: Đổi tên tại chỗ
 
         private func beginRename(path: String) {
-            guard let table, let row = rowByPath[path], row < items.count else { return }
+            guard let table, let row = rowByPath[path], let item = item(atRow: row) else { return }
             let col = table.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
             guard col >= 0 else { return }
-            let item = items[row]
             table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             table.scrollRowToVisible(row)
             guard let cell = table.view(atColumn: col, row: row, makeIfNecessary: true) as? ListCell,
@@ -364,11 +424,26 @@ struct FileListView: NSViewRepresentable {
 
         // MARK: Data source
 
-        func numberOfRows(in tableView: NSTableView) -> Int { items.count }
+        func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+
+        func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+            row >= 0 && row < rows.count && item(atRow: row) == nil
+        }
+
+        func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { item(atRow: row) != nil }
+
+        func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposed: IndexSet) -> IndexSet {
+            proposed.filter { item(atRow: $0) != nil }.reduce(into: IndexSet()) { $0.insert($1) }
+        }
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-            guard let tableColumn, row < items.count else { return nil }
-            let item = items[row]
+            if row >= 0, row < rows.count, case .header(let g) = rows[row] {
+                let cell = (tableView.makeView(withIdentifier: GroupHeaderCell.identifier, owner: nil) as? GroupHeaderCell)
+                    ?? GroupHeaderCell(frame: .zero)
+                cell.configure(title: g.title, count: g.count)
+                return cell
+            }
+            guard let tableColumn, let item = item(atRow: row) else { return nil }
             let id = tableColumn.identifier
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? ListCell)
                 ?? Self.makeCell(id, hasIcon: id.rawValue == "name")
@@ -456,8 +531,8 @@ struct FileListView: NSViewRepresentable {
 
         /// Không bắt đầu kéo khi đang đổi tên; chọn nhiều thì AppKit kéo cả các hàng đang chọn.
         func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
-            guard editing == nil, row < items.count else { return nil }
-            return items[row].url as NSURL
+            guard editing == nil, let item = item(atRow: row) else { return nil }
+            return item.url as NSURL
         }
 
         func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo,
@@ -465,9 +540,9 @@ struct FileListView: NSViewRepresentable {
             let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
             var dest = model.folder
             var onBackground = false
-            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder,
-               !sources.contains(where: { $0.standardizedFileURL.path == items[row].url.standardizedFileURL.path }) {
-                dest = items[row].url
+            if op == .on, let target = item(atRow: row), target.isNavigableFolder,
+               !sources.contains(where: { $0.standardizedFileURL.path == target.url.standardizedFileURL.path }) {
+                dest = target.url
             } else {
                 // Thả vào chỗ khác → cả bảng = thư mục đang xem (trừ khi đang xem kết quả tìm Subfolders).
                 tableView.setDropRow(-1, dropOperation: .on)
@@ -484,7 +559,7 @@ struct FileListView: NSViewRepresentable {
             let sources = BrowserModel.fileURLs(from: info.draggingPasteboard)
             var dest = model.folder
             var onBackground = true
-            if op == .on, row >= 0, row < items.count, items[row].isNavigableFolder { dest = items[row].url; onBackground = false }
+            if op == .on, let target = item(atRow: row), target.isNavigableFolder { dest = target.url; onBackground = false }
             guard !onBackground || model.backgroundDropAllowed,
                   let kind = model.dropKind(sources: sources, destination: dest, mask: info.draggingSourceOperationMask)
             else { return false }
@@ -496,7 +571,7 @@ struct FileListView: NSViewRepresentable {
 
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !isUpdating, let table else { return }
-            model.selection = Set(table.selectedRowIndexes.compactMap { $0 < items.count ? items[$0].url.path : nil })
+            model.selection = Set(table.selectedRowIndexes.compactMap { item(atRow: $0)?.url.path })
         }
 
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -508,12 +583,11 @@ struct FileListView: NSViewRepresentable {
 
         /// Type-to-select tích hợp sẵn của NSTableView cần chuỗi để so khớp.
         func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? {
-            row < items.count ? items[row].name : nil
+            item(atRow: row)?.name
         }
 
         @objc func doubleClicked(_ sender: Any?) {
-            guard let table, table.clickedRow >= 0, table.clickedRow < items.count else { return }
-            let clicked = items[table.clickedRow]
+            guard let table, let clicked = item(atRow: table.clickedRow) else { return }
             model.open(table.selectedRowIndexes.contains(table.clickedRow) ? model.selectedItems : [clicked])
         }
     }

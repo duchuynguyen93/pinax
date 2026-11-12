@@ -290,6 +290,19 @@ struct BrowserWindowView: View {
                     .disabled(model.pinax != nil)
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Picker(L("Group By", "Nhóm theo"), selection: Binding(
+                            get: { env.prefs.groupBy }, set: { env.prefs.groupBy = $0 })) {
+                            Text(L("None", "Không")).tag(GroupBy.none)
+                            Text(L("Kind", "Loại")).tag(GroupBy.kind)
+                            Text(L("Date Modified", "Ngày sửa")).tag(GroupBy.modified)
+                        }
+                        .pickerStyle(.inline)
+                    } label: { Image(systemName: "square.grid.3x1.below.line.grid.1x2") }
+                        .disabled(model.pinax != nil)
+                        .help(L("Group By", "Nhóm theo"))
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button { env.prefs.showPreview.toggle() } label: { Image(systemName: "sidebar.right") }
                         .disabled(model.pinax != nil)
                         .help(L("Show/Hide Preview (⇧⌘P)", "Hiện/ẩn xem trước (⇧⌘P)"))

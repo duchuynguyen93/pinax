@@ -9,6 +9,8 @@ struct PathField: NSViewRepresentable {
     let onSubmit: (String) -> Bool
     let onCancel: () -> Void
     let onSuggestions: ([String], Int?) -> Void
+    /// Gọi mỗi khi text đổi (để PathBar đổi icon sang chế độ lệnh).
+    var onTextChange: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -91,6 +93,7 @@ struct PathField: NSViewRepresentable {
         func controlTextDidChange(_ obj: Notification) {
             cycle = nil
             parent.onSuggestions([], nil)
+            if let field = obj.object as? NSTextField { parent.onTextChange(field.stringValue) }
             if let field = obj.object as? NSTextField, field.textColor == .systemRed {
                 field.textColor = .labelColor
                 (field.currentEditor() as? NSTextView)?.textColor = .labelColor
@@ -107,6 +110,7 @@ struct PathField: NSViewRepresentable {
         }
 
         private func tab(_ tv: NSTextView, backwards: Bool) {
+            if tv.string.drop(while: \.isWhitespace).hasPrefix(">") { return tabCommand(tv, backwards: backwards) }
             guard let step = PathCompletion.step(text: tv.string, home: home, cycle: cycle, backwards: backwards) else {
                 NSSound.beep()
                 parent.onSuggestions([], nil)
@@ -115,6 +119,35 @@ struct PathField: NSViewRepresentable {
             cycle = step.index.map { (step.matches, $0) }
             set(tv, step.text)
             parent.onSuggestions(step.matches, step.index)
+        }
+
+        /// Tab ở chế độ lệnh: hoàn thành tên lệnh thành `>tên `; nhiều kết quả thì xoay vòng như đường dẫn.
+        private func tabCommand(_ tv: NSTextView, backwards: Bool) {
+            if let c = cycle, c.matches.indices.contains(c.index), c.matches[c.index] == tv.string {
+                let n = c.matches.count
+                let next = (c.index + (backwards ? n - 1 : 1)) % n
+                cycle = (c.matches, next)
+                set(tv, c.matches[next])
+                parent.onSuggestions(c.matches, next)
+                return
+            }
+            let names = PathCommand.completions(tv.string)
+            guard !names.isEmpty else {
+                NSSound.beep()
+                parent.onSuggestions([], nil)
+                return
+            }
+            if names.count == 1 {
+                cycle = nil
+                set(tv, ">" + names[0] + " ")
+                parent.onSuggestions([], nil)
+                return
+            }
+            let matches = names.map { ">" + $0 + " " }
+            let start = backwards ? matches.count - 1 : 0
+            cycle = (matches, start)
+            set(tv, matches[start])
+            parent.onSuggestions(matches, start)
         }
 
         private func set(_ tv: NSTextView, _ s: String) {

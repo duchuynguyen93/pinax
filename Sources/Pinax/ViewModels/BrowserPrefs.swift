@@ -11,6 +11,9 @@ final class BrowserPrefs {
     static let foldersFirstKey = "pinax.browser.foldersFirst"
     static let lastFolderKey = "pinax.browser.lastFolder"
     static let previewKey = "pinax.browser.preview"
+    static let groupByKey = "pinax.browser.groupBy"
+    /// Đổi kiểu nhóm → mọi `BrowserModel` (mọi cửa sổ / pane) dựng lại danh sách.
+    static let groupingChanged = Notification.Name("pinax.browser.groupingChanged")
 
     var showHidden: Bool {
         didSet { UserDefaults.standard.set(showHidden, forKey: Self.hiddenKey) }
@@ -18,6 +21,13 @@ final class BrowserPrefs {
 
     var showPreview: Bool {
         didSet { UserDefaults.standard.set(showPreview, forKey: Self.previewKey) }
+    }
+
+    var groupBy: GroupBy {
+        didSet {
+            UserDefaults.standard.set(groupBy.rawValue, forKey: Self.groupByKey)
+            NotificationCenter.default.post(name: Self.groupingChanged, object: nil)
+        }
     }
 
     var sort: FileSort {
@@ -34,6 +44,10 @@ final class BrowserPrefs {
         showHidden = ud.bool(forKey: Self.hiddenKey)
         // PINAX_QA_PREVIEW=1 (QA): bật xem trước mà không ghi đè tuỳ chọn đã lưu.
         showPreview = ud.bool(forKey: Self.previewKey) || ProcessInfo.processInfo.environment["PINAX_QA_PREVIEW"] == "1"
+        // PINAX_QA_GROUP=kind|modified (QA): bắt đầu với kiểu nhóm đó mà không ghi đè tuỳ chọn đã lưu
+        // (gán trong init không kích hoạt didSet).
+        groupBy = ProcessInfo.processInfo.environment["PINAX_QA_GROUP"].flatMap(GroupBy.init(rawValue:))
+            ?? GroupBy(rawValue: ud.string(forKey: Self.groupByKey) ?? "") ?? .none
         sort = FileSort(
             key: FileSort.Key(rawValue: ud.string(forKey: Self.sortKey) ?? "") ?? .name,
             ascending: ud.object(forKey: Self.ascendingKey) as? Bool ?? true,

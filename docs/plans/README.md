@@ -13,3 +13,4 @@ One file per milestone. Write the plan here before coding. Plans are written in 
 | [M6: Search](M6-search.md) | Done (0.6.0) | Cmd+F: filter this folder or search subfolders (Spotlight on the startup disk, fts elsewhere), accent-insensitive |
 | [M7: Batch rename](M7-batch-rename.md) | Done (0.7.0) | Replace / add / format / case with preview, swap-safe two-step moves, one History entry |
 | [M8: Preview, cut, cloud, tags](M8-preview-cut-cloud-tags.md) | Done (0.8.0) | Inspector preview pane, Cmd+X cut, CloudStorage and color tags in the sidebar, tag results via Spotlight |
+| [M9: Groups, path bar commands](M9-groups-path-commands.md) | Done (0.9.0) | Group By Kind / Date Modified in list and icon view, `code .`-style commands in the Cmd+L field (no shell) |

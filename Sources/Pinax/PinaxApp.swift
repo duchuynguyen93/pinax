@@ -188,7 +188,18 @@ struct PinaxCommands: Commands {
                 .keyboardShortcut(".", modifiers: [.command, .shift])
             Toggle(L("Keep Folders on Top", "Thư mục luôn ở trên"), isOn: Binding(
                 get: { env.prefs.sort.foldersFirst }, set: { env.prefs.sort.foldersFirst = $0 }))
+            Menu(L("Group By", "Nhóm theo")) {
+                groupToggle(L("None", "Không"), .none, key: "0")
+                groupToggle(L("Kind", "Loại"), .kind, key: "2")
+                groupToggle(L("Date Modified", "Ngày sửa"), .modified, key: "5")
+            }
+            .disabled(browser == nil || browser?.pinax != nil)
         }
+    }
+
+    private func groupToggle(_ title: String, _ by: GroupBy, key: KeyEquivalent) -> some View {
+        Toggle(title, isOn: Binding(get: { env.prefs.groupBy == by }, set: { if $0 { env.prefs.groupBy = by } }))
+            .keyboardShortcut(key, modifiers: [.control, .command])
     }
 
     /// Đang ở màn Space Map: ⌘⌫ và ⌘↑ thuộc về nó.

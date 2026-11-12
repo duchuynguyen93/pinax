@@ -4,7 +4,7 @@
 
 Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk clutter and tidies your Downloads folder. It never deletes anything: every removal is a move to the Trash, and every batch can be undone from the built-in history. Later milestones will grow it into a Finder companion with its own file browser.
 
-> Version 0.8.0 (M8). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
+> Version 0.9.0 (M9). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
 
 ## Features
 
@@ -18,6 +18,7 @@ Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk c
 - **History and Undo**: every batch is journaled; undo the latest with Cmd+Z or any batch from the History screen, with a per-item result.
 - **Uninstall Apps**: removes an app together with the caches, preferences and support files it left in `~/Library`, and Smart Clean finds leftovers of apps you already deleted. All undoable.
 - **Preview pane, cut, cloud and tags**: Shift+Cmd+P live preview with folder contents, Cmd+X / Cmd+V moves, Google Drive / Dropbox / OneDrive and color tags in the sidebar.
+- **Groups and path bar commands**: group the list by Kind or Date Modified; type `code .` or `>term` in the Cmd+L field to open the folder in that app (no shell).
 - **Batch rename**: replace, add text, name + number, or change case for many items, with a live preview; one Cmd+Z undoes it.
 - **Search**: Cmd+F filters the current folder or searches all subfolders (Spotlight on the startup disk), ignoring case and accents.
 - **Space Map**: scans your home (or any folder) and shows what takes the most space, level by level; move items to the Trash from there, undoable.
@@ -71,6 +72,7 @@ The version lives in the [`VERSION`](VERSION) file.
 | M6 | Search: filter this folder or find in subfolders (Spotlight / fts), accent-insensitive | Done (0.6.0) |
 | M7 | Batch rename (replace, add, format, case) with preview and one-step undo | Done (0.7.0) |
 | M8 | Preview pane, Cmd+X cut, cloud drives and color tags in the sidebar | Done (0.8.0) |
+| M9 | Group by Kind / Date Modified, path bar commands (`code .`, `>term`) | Done (0.9.0) |
 
 ## Documentation
 
@@ -96,6 +98,7 @@ Pinax là tiện ích macOS miễn phí, mã nguồn mở, viết bằng SwiftUI
 - **Lịch sử và Hoàn tác**: Cmd+Z hoặc từ màn Lịch sử; lịch sử còn nguyên sau khi mở lại app.
 - **An toàn**: chỉ chuyển vào Thùng rác, kiểm tra lại từng mục ngay trước khi làm, có danh sách đường dẫn cấm, không gửi gì ra ngoài máy.
 - **Xem trước, cắt, cloud, tag**: khung xem trước (Shift+Cmd+P), Cmd+X / Cmd+V để chuyển, Google Drive / Dropbox / OneDrive và tag màu trên sidebar.
+- **Nhóm và lệnh path bar**: nhóm danh sách theo Loại hoặc Ngày sửa; gõ `code .`, `>term` ở ô Cmd+L để mở thư mục bằng app (không chạy shell).
 - **Đổi tên hàng loạt**: thay chữ, thêm chữ, tên + số thứ tự, đổi hoa thường cho nhiều mục, xem trước từng tên, một Cmd+Z là trả lại.
 - **Tìm kiếm**: Cmd+F lọc thư mục đang xem hoặc tìm trong mọi thư mục con, không phân biệt hoa thường và dấu.
 - **Bản đồ dung lượng**: quét Home hoặc thư mục bất kỳ, xem cái gì nặng nhất theo từng cấp, chuyển vào Thùng rác ngay tại đó (hoàn tác được).
