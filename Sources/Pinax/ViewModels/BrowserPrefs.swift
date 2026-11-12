@@ -10,9 +10,14 @@ final class BrowserPrefs {
     static let ascendingKey = "pinax.browser.sortAscending"
     static let foldersFirstKey = "pinax.browser.foldersFirst"
     static let lastFolderKey = "pinax.browser.lastFolder"
+    static let previewKey = "pinax.browser.preview"
 
     var showHidden: Bool {
         didSet { UserDefaults.standard.set(showHidden, forKey: Self.hiddenKey) }
+    }
+
+    var showPreview: Bool {
+        didSet { UserDefaults.standard.set(showPreview, forKey: Self.previewKey) }
     }
 
     var sort: FileSort {
@@ -27,6 +32,8 @@ final class BrowserPrefs {
     init() {
         let ud = UserDefaults.standard
         showHidden = ud.bool(forKey: Self.hiddenKey)
+        // PINAX_QA_PREVIEW=1 (QA): bật xem trước mà không ghi đè tuỳ chọn đã lưu.
+        showPreview = ud.bool(forKey: Self.previewKey) || ProcessInfo.processInfo.environment["PINAX_QA_PREVIEW"] == "1"
         sort = FileSort(
             key: FileSort.Key(rawValue: ud.string(forKey: Self.sortKey) ?? "") ?? .name,
             ascending: ud.object(forKey: Self.ascendingKey) as? Bool ?? true,

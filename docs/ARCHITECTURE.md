@@ -70,6 +70,10 @@ Carried over from [plans/M1-smart-clean.md](plans/M1-smart-clean.md) section 1; 
 
 Copy and move (M3, [plan](plans/M3-dual-pane-transfers.md) section 3): copies are written under a hidden `.pinax-partial-*` name and renamed into place with `RENAME_EXCL`, so a destination is never overwritten; a cancelled or failed partial copy goes to the Trash. A cross-disk move is copy then Trash of the original. Undoing a copy (`JournalOp.copy`) moves the copy to the Trash. Replace moves the old item to the Trash first. None of this adds a `removeItem`.
 
+Batch rename (M7): every rename is an `Executor` move that never overwrites; swaps and chains go through hidden `.pinax-rename-*` names in the same folder, all journaled, so undo walks them back.
+
+Tags (M8) are written with `NSURL.setResourceValue(_:forKey: .tagNamesKey)` directly, not through `Executor` or the journal: a tag changes neither content nor location, and toggling it again is the undo. They are only written on items `FileOps.canModify` allows. Cut (Cmd+X) is a Copy plus an in-memory marker; Cmd+V turns into a normal journaled move.
+
 Implementation notes: comparisons in `PathGuard` are case-insensitive (APFS default); `Executor` additionally refuses symlinks and protected app bundles regardless of where a candidate came from; Tidy never overwrites a destination. The single permitted `removeItem` is in `Executor.removeIfEmpty`, for empty directories Pinax itself created during Tidy.
 
 ## Testing strategy

@@ -53,11 +53,13 @@ final class BrowserTableView: NSTableView, NSMenuItemValidation {
     }
 
     // ⌘C / ⌘V của menu Edit đi qua responder chain tới đây; ô chữ đang gõ giữ ⌘C / ⌘V của nó.
+    @objc func cut(_ sender: Any?) { model?.cutSelectionToPasteboard() }
     @objc func copy(_ sender: Any?) { model?.copySelectionToPasteboard() }
     @objc func paste(_ sender: Any?) { model?.pasteFromPasteboard(move: false) }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
+        case #selector(cut(_:)): model?.canCutSelection ?? false
         case #selector(copy(_:)): model?.canCopySelection ?? false
         case #selector(paste(_:)): model?.canPaste ?? false
         default: true
@@ -165,6 +167,15 @@ struct FileListView: NSViewRepresentable {
             return BrowserKeys.handle(event, model: c.model)
         }
         c.model.folderSizes.observe(c) { [weak c] path in c?.sizeResolved(path) }
+        // Khung hẹp lại (mở preview, thu cửa sổ) mà NSTableView không tự co cột Tên → các cột sau bị đẩy ra ngoài.
+        if !dual {
+            scroll.contentView.postsFrameChangedNotifications = true
+            c.frameObserver = NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification, object: scroll.contentView, queue: .main) { [weak c] _ in
+                MainActor.assumeIsolated { c?.fitNameColumn() }
+            }
+            DispatchQueue.main.async { [weak c] in c?.fitNameColumn() }
+        }
         return scroll
     }
 
@@ -186,6 +197,18 @@ struct FileListView: NSViewRepresentable {
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
         var model: BrowserModel
         weak var table: BrowserTableView?
+        var frameObserver: NSObjectProtocol?
+
+        /// Cột Tên lấp phần còn lại của khung: các cột khác giữ nguyên bề rộng.
+        func fitNameColumn() {
+            guard let table, let clip = table.enclosingScrollView?.contentView,
+                  let name = table.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier("name")) else { return }
+            let visible = table.tableColumns.filter { !$0.isHidden }
+            let others = visible.filter { $0 !== name }.reduce(CGFloat(0)) { $0 + $1.width }
+            let spacing = table.intercellSpacing.width * CGFloat(visible.count)
+            let target = max(name.minWidth, clip.bounds.width - others - spacing)
+            if abs(name.width - target) > 0.5 { name.width = target }
+        }
         private var items: [FileItem] = []
         private var rowByPath: [String: Int] = [:]
         private var lastGeneration = -1, lastReset = -1, lastReveal = -1
@@ -198,7 +221,29 @@ struct FileListView: NSViewRepresentable {
         let thumbs = ThumbnailRequester()
         private static let iconPoints: CGFloat = 18
 
-        init(model: BrowserModel) { self.model = model }
+        private var cutObserver: NSObjectProtocol?
+
+        init(model: BrowserModel) {
+            self.model = model
+            super.init()
+            // ⌘X / dán / chép → vẽ lại các dòng đang hiện để mục bị cắt mờ đi hoặc rõ lại.
+            cutObserver = NotificationCenter.default.addObserver(forName: ClipboardCut.didChange, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshCutState() }
+            }
+        }
+
+        isolated deinit {
+            if let cutObserver { NotificationCenter.default.removeObserver(cutObserver) }
+            if let frameObserver { NotificationCenter.default.removeObserver(frameObserver) }
+        }
+
+        private func refreshCutState() {
+            guard let table, editing == nil else { return }
+            let rows = table.rows(in: table.visibleRect)
+            guard rows.length > 0 else { return }
+            table.reloadData(forRowIndexes: IndexSet(integersIn: rows.location..<rows.location + rows.length),
+                             columnIndexes: IndexSet(integersIn: 0..<table.numberOfColumns))
+        }
 
         /// Một thư mục vừa tính xong → vẽ lại ô Size của đúng dòng đó.
         func sizeResolved(_ path: String) {
@@ -219,10 +264,8 @@ struct FileListView: NSViewRepresentable {
                 // Lấy / trả chỗ từ cột Tên, không co các cột Ngày / Cỡ / Loại (sizeToFit bóp đều mọi cột).
                 let name = table.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier("name"))
                 if showWhere { col.width = max(col.width, 220) }
-                if let name, table.columnAutoresizingStyle == .firstColumnOnlyAutoresizingStyle {
-                    name.width = showWhere ? max(name.minWidth, name.width - col.width) : name.width + col.width
-                }
                 col.isHidden = !showWhere
+                if name != nil, table.columnAutoresizingStyle == .firstColumnOnlyAutoresizingStyle { fitNameColumn() }
                 if table.columnAutoresizingStyle != .firstColumnOnlyAutoresizingStyle { table.sizeToFit() }
             }
 
@@ -360,7 +403,7 @@ struct FileListView: NSViewRepresentable {
             default: text = item.kindDescription
             }
             cell.textField?.stringValue = text
-            cell.alphaValue = item.isHidden ? 0.6 : 1
+            cell.alphaValue = (item.isHidden ? 0.6 : 1) * ClipboardCut.alpha(item.url.path)
             return cell
         }
 

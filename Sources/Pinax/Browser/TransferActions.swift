@@ -15,6 +15,13 @@ extension BrowserModel {
         return NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: Self.fileURLOptions)
     }
 
+    /// Cắt = chép + chuyển khi dán, nên mọi mục phải sửa được.
+    var canCutSelection: Bool {
+        guard canCopySelection else { return false }
+        let ops = fileOps
+        return selectedItems.allSatisfy { ops.canModify($0.url) }
+    }
+
     var canDuplicateSelection: Bool { canCopySelection && canCreateFolderHere }
 
     /// Số file trên pasteboard (để đặt tên mục menu).
@@ -30,6 +37,17 @@ extension BrowserModel {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.writeObjects(selectedItems.map(\.url) as [NSURL])
+        ClipboardCut.clear()
+    }
+
+    /// ⌘X: như ⌘C nhưng nhớ là "cắt" → ⌘V sau đó chuyển file; mục hiện mờ tới khi dán / pasteboard đổi.
+    func cutSelectionToPasteboard() {
+        guard canCutSelection else { NSSound.beep(); return }
+        let items = selectedItems
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects(items.map(\.url) as [NSURL])
+        ClipboardCut.mark(paths: Set(items.map(\.url.path)))
     }
 
     /// ⌘V (chép) / ⌥⌘V (chuyển) vào thư mục đang xem.
@@ -37,7 +55,10 @@ extension BrowserModel {
         guard canPaste,
               let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: Self.fileURLOptions) as? [URL],
               !urls.isEmpty else { NSSound.beep(); return }
-        enqueueTransfer(urls, kind: move ? .move : .copy)
+        // Pasteboard vẫn là lần cắt của Pinax → chuyển rồi bỏ trạng thái cắt.
+        let wasCut = ClipboardCut.isActive
+        enqueueTransfer(urls, kind: move || wasCut ? .move : .copy)
+        if wasCut { ClipboardCut.clear() }
     }
 
     func duplicateSelection() {

@@ -125,7 +125,9 @@ final class BrowserModel {
     nonisolated static let searchLimit = 5000
     var isSearching: Bool { !searchMatcher.isEmpty }
     /// Đang xem kết quả đệ quy: không có "thư mục hiện tại" để tạo / dán / thả vào.
-    var inSubfolderSearch: Bool { isSearching && searchScope == .subfolders }
+    var inSubfolderSearch: Bool { tagName != nil || (isSearching && searchScope == .subfolders) }
+    /// Đang xem mọi file mang một tag (Spotlight trong home); khác nil → thay cho danh sách thư mục.
+    private(set) var tagName: String?
     /// Thả vào nền bảng / lưới = thả vào thư mục đang xem; không được khi đang xem kết quả đệ quy.
     var backgroundDropAllowed: Bool { !inSubfolderSearch }
 
@@ -170,7 +172,7 @@ final class BrowserModel {
     // MARK: Trạng thái dẫn xuất
 
     var title: String {
-        pinax?.title ?? FileManager.default.displayName(atPath: folder.path)
+        pinax?.title ?? tagName ?? FileManager.default.displayName(atPath: folder.path)
     }
 
     var canGoBack: Bool { !backStack.isEmpty }
@@ -211,6 +213,20 @@ final class BrowserModel {
         beginLoad(reset: true)
         installWatcher()
         git.folderChanged(folder)
+        if let tag = Self.takeQATag() {
+            Task {
+                for _ in 0..<100 where isLoading { try? await Task.sleep(for: .milliseconds(50)) }
+                showTag(tag)
+            }
+        }
+    }
+
+    @MainActor private static var qaTagConsumed = false
+    /// PINAX_QA_TAG=<tên tag> (QA, chỉ cửa sổ đầu): mở thẳng kết quả tag đó sau khi thư mục đầu nạp xong.
+    @MainActor private static func takeQATag() -> String? {
+        guard !qaTagConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_TAG"], !v.isEmpty else { return nil }
+        qaTagConsumed = true
+        return v
     }
 
     // MARK: Điều hướng
@@ -220,6 +236,7 @@ final class BrowserModel {
         pinax = nil
         let target = Self.normalized(url)
         if target.path == folder.path {
+            if tagName != nil { clearSearchSilently(); rebuildItems() }
             if let select { selection = [select]; revealToken += 1 }
             beginLoad(reset: false)
             return
@@ -260,6 +277,29 @@ final class BrowserModel {
         folderSizes.cancelAll()
         pathEditing = false
         pinax = section
+    }
+
+    /// Hiện mọi file mang tag `name` trong home (như kết quả tìm Subfolders). Điều hướng đi nơi khác thì thoát.
+    func showTag(_ name: String) {
+        pathEditing = false
+        guard tagName != name || pinax != nil else { return }
+        let wasBrowsing = tagName == nil && pinax == nil
+        clearSearchSilently()
+        pinax = nil
+        if wasBrowsing {
+            backStack.append(folder)
+            forwardStack.removeAll()
+        }
+        folderSizes.cancelAll()
+        quickLookURL = nil
+        pendingRename = nil
+        pendingSelect = []
+        selection = []
+        tagName = name
+        isLoading = true
+        startSubfolderSearch(debounce: false)
+        rebuildItems()
+        resetToken += 1
     }
 
     private func move(to target: URL, select: String?) {
@@ -473,7 +513,9 @@ final class BrowserModel {
     /// Trả về tập đường dẫn đang hiện.
     @discardableResult
     private func rebuildItems() -> Set<String> {
-        if !isSearching {
+        if tagName != nil {
+            items = results
+        } else if !isSearching {
             items = listed
         } else if searchScope == .folder {
             let m = searchMatcher
@@ -502,8 +544,10 @@ final class BrowserModel {
     /// Xoá tìm kiếm khi rời thư mục: không dựng lại `items` (lần nạp sau sẽ làm).
     @discardableResult
     private func clearSearchSilently() -> Bool {
-        guard isSearching || !searchText.isEmpty || searchRunning else { return false }
+        guard isSearching || !searchText.isEmpty || searchRunning || tagName != nil else { return false }
         cancelSearch()
+        if tagName != nil { isLoading = false }
+        tagName = nil
         silentSearchChange = true
         searchText = ""
         silentSearchChange = false
@@ -516,6 +560,14 @@ final class BrowserModel {
 
     private func searchChanged() {
         let wasSub = inSubfolderSearch
+        if tagName != nil {
+            // Gõ vào ô tìm khi đang xem tag → thoát tag, tìm trong thư mục đang xem.
+            guard !searchText.isEmpty else { return }
+            tagName = nil
+            isLoading = false
+            results = []
+            resultsVersion += 1
+        }
         searchMatcher = NameMatcher(searchText)
         cancelSearch()
         searchTruncated = false
@@ -545,17 +597,21 @@ final class BrowserModel {
     private func startSubfolderSearch(debounce: Bool) {
         cancelSearch()
         let epoch = searchEpoch
-        let root = folder, matcher = searchMatcher, showHidden = prefs.showHidden
+        let tag = tagName
+        let root = tag != nil ? home : folder
+        let matcher = tag != nil ? NameMatcher("") : searchMatcher
+        let showHidden = prefs.showHidden
         searchRoot = root.path
         searchRootResolved = root.resolvingSymlinksInPath().path
         searchShowHidden = showHidden
         searchRunning = true
-        usingSpotlight = shouldUseSpotlight(root) && SpotlightPredicate.make(searchText) != nil
         let query = searchText
+        let predicate = tag.map(TagSupport.predicate(for:)) ?? SpotlightPredicate.make(query)
+        usingSpotlight = tag != nil || (shouldUseSpotlight(root) && predicate != nil)
         searchTask = Task { [weak self] in
             if debounce { try? await Task.sleep(for: .milliseconds(200)) }
             guard !Task.isCancelled, let self, self.searchEpoch == epoch else { return }
-            if self.usingSpotlight, let predicate = SpotlightPredicate.make(query) {
+            if self.usingSpotlight, let predicate {
                 self.runSpotlight(root: root, predicate: predicate, matcher: matcher, showHidden: showHidden, epoch: epoch)
             } else {
                 await self.runFTS(root: root, matcher: matcher, showHidden: showHidden, epoch: epoch)
@@ -600,6 +656,7 @@ final class BrowserModel {
                 self.pumpSpotlight(prefixes: prefixes, matcher: matcher, showHidden: showHidden, epoch: epoch)
             } else if self.spotlightFinished {
                 self.searchRunning = false
+                if self.tagName != nil { self.isLoading = false }
             }
         }
     }

@@ -28,6 +28,35 @@ extension BrowserModel {
         return selectedItems.contains { ops.canModify($0.url) }
     }
 
+    // MARK: Tag màu
+
+    /// Mục menu Tags bật nếu có ít nhất một mục sửa được.
+    var canTagSelection: Bool { canTrashSelection }
+
+    /// Bật / tắt tag `name` trên mọi mục chọn sửa được: mọi mục đã có → bỏ, ngược lại → thêm. Ghi ngoài main.
+    func toggleTag(_ name: String) {
+        guard canTagSelection else { return }
+        let ops = fileOps
+        let urls = selectedItems.map(\.url).filter { ops.canModify($0) }
+        let add = !urls.allSatisfy { TagSupport.tags(of: $0).contains(name) }
+        Task {
+            let failed = await Task.detached(priority: .userInitiated) { TagSupport.apply(name, add: add, to: urls) }.value
+            if failed > 0 {
+                toast.show(L("Couldn't change the tag on \(failed) items", "Không đổi được tag của \(failed) mục"))
+            }
+            reload()
+        }
+    }
+
+    /// Tag nào mọi mục chọn đều có (để đánh dấu trong menu). Chọn quá nhiều thì bỏ qua cho khỏi đọc đĩa trên main.
+    func tagsOnAllSelected() -> Set<String> {
+        let sel = selectedItems
+        guard !sel.isEmpty, sel.count <= 200 else { return [] }
+        var common = Set(TagSupport.tags(of: sel[0].url))
+        for item in sel.dropFirst() where !common.isEmpty { common.formIntersection(TagSupport.tags(of: item.url)) }
+        return common
+    }
+
     // MARK: New Folder
 
     func newFolder() {

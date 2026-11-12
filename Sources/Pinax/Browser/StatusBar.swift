@@ -19,10 +19,20 @@ struct StatusBar: View {
     }
 
     private var summary: String {
+        if let tag = model.tagName { return tagSummary(tag) }
         if model.isSearching { return searchSummary }
         var s = itemsText(model.items.count) + ", " + selectedText(model.selection.count)
         if let free = model.availableBytes { s += " · " + availableText(fmtBytes(free)) }
         return s
+    }
+
+    /// "N items tagged “x”" (+ đang tìm / bị cắt), kèm số mục chọn.
+    private func tagSummary(_ tag: String) -> String {
+        let n = model.items.count, count = n.formatted()
+        var s = n == 1 ? L("1 item tagged “\(tag)”", "1 mục gắn tag “\(tag)”") : L("\(count) items tagged “\(tag)”", "\(count) mục gắn tag “\(tag)”")
+        if model.searchRunning { s += L(" · searching…", " · đang tìm…") }
+        if model.searchTruncated { s += L(" · showing first \(BrowserModel.searchLimit.formatted())", " · chỉ hiện \(BrowserModel.searchLimit.formatted()) mục đầu") }
+        return s + ", " + selectedText(model.selection.count)
     }
 
     /// "N results for “q”" (+ đang tìm / bị cắt), kèm số mục chọn.

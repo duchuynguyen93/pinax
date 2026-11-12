@@ -12,3 +12,4 @@ One file per milestone. Write the plan here before coding. Plans are written in 
 | [M5: Space Map](M5-space-map.md) | Done (0.5.0) | fts-based disk usage tree, drill down, move to Trash, Analyze Size from the browser |
 | [M6: Search](M6-search.md) | Done (0.6.0) | Cmd+F: filter this folder or search subfolders (Spotlight on the startup disk, fts elsewhere), accent-insensitive |
 | [M7: Batch rename](M7-batch-rename.md) | Done (0.7.0) | Replace / add / format / case with preview, swap-safe two-step moves, one History entry |
+| [M8: Preview, cut, cloud, tags](M8-preview-cut-cloud-tags.md) | Done (0.8.0) | Inspector preview pane, Cmd+X cut, CloudStorage and color tags in the sidebar, tag results via Spotlight |

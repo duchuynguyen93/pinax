@@ -42,11 +42,13 @@ final class BrowserCollectionView: NSCollectionView, NSMenuItemValidation {
     }
 
     // ⌘C / ⌘V của menu Edit đi qua responder chain tới đây; ô chữ đang gõ giữ ⌘C / ⌘V của nó.
+    @objc func cut(_ sender: Any?) { model?.cutSelectionToPasteboard() }
     @objc func copy(_ sender: Any?) { model?.copySelectionToPasteboard() }
     @objc func paste(_ sender: Any?) { model?.pasteFromPasteboard(move: false) }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
+        case #selector(cut(_:)): model?.canCutSelection ?? false
         case #selector(copy(_:)): model?.canCopySelection ?? false
         case #selector(paste(_:)): model?.canPaste ?? false
         default: true
@@ -210,7 +212,26 @@ struct IconGridView: NSViewRepresentable {
         private var editing: (path: String, original: String, field: NSTextField)?
         private var cancelled = false
 
-        init(model: BrowserModel) { self.model = model }
+        private var cutObserver: NSObjectProtocol?
+
+        init(model: BrowserModel) {
+            self.model = model
+            super.init()
+            // ⌘X / dán / chép → cập nhật độ mờ các ô đang hiện.
+            cutObserver = NotificationCenter.default.addObserver(forName: ClipboardCut.didChange, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshCutState() }
+            }
+        }
+
+        isolated deinit { if let cutObserver { NotificationCenter.default.removeObserver(cutObserver) } }
+
+        private func refreshCutState() {
+            guard let collection else { return }
+            for case let cell as IconItem in collection.visibleItems() {
+                guard let path = cell.representedPath, let i = indexByPath[path], i < items.count else { continue }
+                cell.itemView.alphaValue = (items[i].isHidden ? 0.6 : 1) * ClipboardCut.alpha(path)
+            }
+        }
 
         func sync(generation: Int, resetToken: Int, revealToken: Int, iconSize: IconSize, pathEditing: Bool, renameToken: Int = 0) {
             guard let collection else { return }
@@ -374,7 +395,7 @@ struct IconGridView: NSViewRepresentable {
             view.iconPoints = points
             view.title.stringValue = item.name
             view.subtitle.stringValue = Self.subtitle(item, model: model)
-            view.alphaValue = item.isHidden ? 0.6 : 1
+            view.alphaValue = (item.isHidden ? 0.6 : 1) * ClipboardCut.alpha(item.url.path)
             view.selected = cell.isSelected
             cell.requester = thumbs
             cell.representedPath = item.url.path

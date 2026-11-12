@@ -7,9 +7,11 @@ enum SidebarItem: Hashable {
     case volume(URL)
     case pinax(SidebarSection)
     case workspace(UUID)
+    case cloud(URL)
+    case tag(String)
 }
 
-/// Sidebar ba nhóm: Favorites, Locations, Pinax.
+/// Sidebar: Favorites, Locations, Cloud (nếu có), Tags, Workspaces (nếu có), Pinax.
 struct SidebarView: View {
     let model: BrowserModel
     @Environment(FavoritesModel.self) private var favorites
@@ -17,18 +19,23 @@ struct SidebarView: View {
     @Environment(AppEnvironment.self) private var env
     /// Favorite đang được rê file tới (để tô sáng).
     @State private var dropTarget: URL?
+    /// Dịch vụ đám mây trong ~/Library/CloudStorage; nạp lại khi app active.
+    @State private var clouds: [CloudLocation] = []
 
     private var selection: Binding<SidebarItem?> {
         Binding(
             get: {
                 if let s = model.pinax { return .pinax(s) }
+                if let t = model.tagName { return .tag(t) }
                 if let f = favorites.urls.first(where: { $0.path == model.folder.path }) { return .favorite(f) }
                 if let v = volumes.volumes.first(where: { $0.url.path == model.folder.path }) { return .volume(v.url) }
+                if let c = clouds.first(where: { $0.url.path == model.folder.path }) { return .cloud(c.url) }
                 return nil
             },
             set: { item in
                 switch item {
-                case .favorite(let url), .volume(let url): model.navigate(to: url)
+                case .favorite(let url), .volume(let url), .cloud(let url): model.navigate(to: url)
+                case .tag(let name): model.showTag(name)
                 case .pinax(let s): model.showPinax(s)
                 case .workspace(let id):
                     if let w = env.workspaces.items.first(where: { $0.id == id }) { OpenRouter.shared.openWorkspace(w) }
@@ -73,6 +80,19 @@ struct SidebarView: View {
                     .tag(SidebarItem.volume(v.url))
                 }
             }
+            if !clouds.isEmpty {
+                Section("Cloud") {
+                    ForEach(clouds, id: \.url) { c in
+                        cloudRow(c)
+                            .tag(SidebarItem.cloud(c.url))
+                            .help(c.account ?? c.service)
+                            .listRowBackground(dropTarget == c.url ? Color.accentColor.opacity(0.3) : nil)
+                            .dropDestination(for: URL.self) { urls, _ in drop(urls, onto: c.url) } isTargeted: { on in
+                                if on { dropTarget = c.url } else if dropTarget == c.url { dropTarget = nil }
+                            }
+                    }
+                }
+            }
             if !env.workspaces.items.isEmpty {
                 Section(L("Workspaces", "Workspace")) {
                     ForEach(env.workspaces.items) { ws in
@@ -88,9 +108,46 @@ struct SidebarView: View {
                     Label(s.title, systemImage: s.symbol).tag(SidebarItem.pinax(s))
                 }
             }
+            // Như Finder: Tags ở cuối, không đẩy các công cụ Pinax xuống.
+            Section(L("Tags", "Tag")) {
+                ForEach(TagSupport.standard) { t in
+                    Label {
+                        Text(t.name)
+                    } icon: {
+                        Image(systemName: "circle.fill").foregroundStyle(Color(nsColor: t.color))
+                    }
+                    .tag(SidebarItem.tag(t.name))
+                }
+            }
         }
         .listStyle(.sidebar)
         .contextMenu { addCurrentButton }
+        .task { await reloadClouds() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await reloadClouds() }
+        }
+    }
+
+    private func reloadClouds() async {
+        let list = await Task.detached(priority: .utility) { CloudLocations.list(root: CloudLocations.defaultRoot()) }.value
+        if list != clouds { clouds = list }
+    }
+
+    /// Tên dịch vụ; có nhiều tài khoản cùng dịch vụ thì thêm tài khoản (mờ) phía sau.
+    @ViewBuilder private func cloudRow(_ c: CloudLocation) -> some View {
+        let shared = clouds.filter { $0.service == c.service }.count > 1
+        Label {
+            if shared, let account = c.account {
+                HStack(spacing: 4) {
+                    Text(c.service)
+                    Text(account).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+            } else {
+                Text(c.service)
+            }
+        } icon: {
+            Image(systemName: "externaldrive.badge.icloud")
+        }
     }
 
     @ViewBuilder private func workspaceMenu(_ ws: Workspace) -> some View {

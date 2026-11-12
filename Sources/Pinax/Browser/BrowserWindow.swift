@@ -209,6 +209,7 @@ struct BrowserRoot: View {
 }
 
 struct BrowserWindowView: View {
+    @Environment(AppEnvironment.self) private var env
     let window: WindowModel
     @FocusState private var searchFocused: Bool
 
@@ -256,6 +257,12 @@ struct BrowserWindowView: View {
                 ForEach(SearchScope.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .searchFocused($searchFocused)
+            .inspector(isPresented: Binding(
+                get: { env.prefs.showPreview && model.pinax == nil },
+                set: { env.prefs.showPreview = $0 })) {
+                PreviewPane(model: model)
+                    .inspectorColumnWidth(min: 260, ideal: 320, max: 480)
+            }
             .onChange(of: window.searchFocusToken) { if model.pinax == nil { searchFocused = true } }
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
@@ -281,6 +288,11 @@ struct BrowserWindowView: View {
                     }
                     .pickerStyle(.segmented)
                     .disabled(model.pinax != nil)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { env.prefs.showPreview.toggle() } label: { Image(systemName: "sidebar.right") }
+                        .disabled(model.pinax != nil)
+                        .help(L("Show/Hide Preview (⇧⌘P)", "Hiện/ẩn xem trước (⇧⌘P)"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { model.zoomOut() } label: { Image(systemName: "minus.magnifyingglass") }
@@ -377,6 +389,14 @@ struct BrowserContent: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background)
+        } else if let tag = model.tagName {
+            if model.items.isEmpty && !model.isLoading && !model.searchRunning {
+                ContentUnavailableView(L("No items tagged “\(tag)”", "Không có mục nào gắn tag “\(tag)”"),
+                                       systemImage: "tag",
+                                       description: Text(L("Right-click files and choose Tags to add one.",
+                                                           "Chuột phải vào file, chọn Tags để gắn.")))
+                    .allowsHitTesting(false)
+            }
         } else if model.isSearching {
             if model.items.isEmpty && !model.isLoading && !model.searchRunning {
                 ContentUnavailableView.search(text: model.searchText)

@@ -61,6 +61,8 @@ enum BrowserMenu {
         }
         menu.addItem(.separator())
         if !items.isEmpty {
+            menu.addItem(ActionMenuItem(L("Cut", "Cắt"), key: "x", mask: .command,
+                                        enabled: model.canCutSelection) { model.cutSelectionToPasteboard() })
             menu.addItem(ActionMenuItem(L("Copy", "Chép"), key: "c", mask: .command,
                                         enabled: model.canCopySelection) { model.copySelectionToPasteboard() })
         }
@@ -75,6 +77,12 @@ enum BrowserMenu {
         menu.addItem(ActionMenuItem(L("Analyze Size", "Phân tích dung lượng"), enabled: model.spaceMap != nil) {
             model.analyzeSize(folderTarget)
         })
+        if !items.isEmpty {
+            let tags = NSMenuItem(title: L("Tags", "Tag"), action: nil, keyEquivalent: "")
+            tags.submenu = tagsMenu(model: model)
+            tags.isEnabled = model.canTagSelection
+            menu.addItem(tags)
+        }
         menu.addItem(.separator())
         let terminal = ExternalApps.terminal, editor = ExternalApps.editor
         menu.addItem(ActionMenuItem(L("Open in Terminal", "Mở trong Terminal"), enabled: terminal != nil) {
@@ -84,6 +92,21 @@ enum BrowserMenu {
             if let editor { ExternalApps.open(folderTarget, with: editor) }
         })
         return menu
+    }
+
+    /// 7 tag màu: chấm màu, dấu ✓ nếu mọi mục chọn đều có tag đó; bấm = bật / tắt.
+    private static func tagsMenu(model: BrowserModel) -> NSMenu {
+        let sub = NSMenu()
+        sub.autoenablesItems = false
+        let have = model.tagsOnAllSelected()
+        let enabled = model.canTagSelection
+        for tag in TagSupport.standard {
+            let item = ActionMenuItem(tag.name, enabled: enabled) { model.toggleTag(tag.name) }
+            item.image = TagSupport.dot(tag.color)
+            item.state = have.contains(tag.name) ? .on : .off
+            sub.addItem(item)
+        }
+        return sub
     }
 
     private static func fnKey(_ code: Int) -> String { String(UnicodeScalar(code).map(Character.init) ?? " ") }

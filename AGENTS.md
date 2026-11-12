@@ -23,6 +23,8 @@ PINAX_SMOKE=1 swift test --filter spaceMapRealHome   # read-only Space Map scan 
 PINAX_QA_NOCLONE=1                # QA: transfers use real copyfile instead of APFS clone (to see progress)
 PINAX_QA_SEARCH=<folder|subfolders>:<query> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window starts a search (This Folder | Subfolders) after the folder loads
 PINAX_QA_BATCH_RENAME=<1|format|replace|add|case> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window selects all items and opens the batch rename sheet in that mode with sample values after the folder loads
+PINAX_QA_PREVIEW=1 PINAX_OPEN=<file|dir> Pinax.app/Contents/MacOS/Pinax   # QA: preview pane on (not saved to prefs); a file path also selects that file
+PINAX_QA_TAG=<tag name, e.g. Red> PINAX_OPEN=<dir> Pinax.app/Contents/MacOS/Pinax   # QA: first window shows the files carrying that Finder tag (Spotlight, home scope) after the folder loads
 PINAX_PERF_LOG=1                  # app prints navigation -> table reload timings to stderr
 ```
 

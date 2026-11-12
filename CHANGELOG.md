@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-12
+
+Milestone M8: preview pane, cut and paste, cloud drives and tags in the sidebar.
+
+### Added
+- **Preview pane** (View > Show Preview, Shift+Cmd+P, or the toolbar button): a live Quick Look preview of the selected file (pages of a PDF, playing video) with kind, size, dates, tags and its folder; for a folder, its item count, size and contents two levels deep (double-click to go there); for several items, the count and total size. With nothing selected it describes the current folder.
+- **Cut** (Cmd+X): cut items look dimmed, and the next Cmd+V in Pinax moves them (journaled, Cmd+Z undoes). Pasting in Finder after a Pinax cut copies, because Finder has no cut for files.
+- **Cloud** in the sidebar: Google Drive, Dropbox, OneDrive and Box folders from `~/Library/CloudStorage`, with the account shown when you have more than one. Drop files on them like on a Favorite.
+- **Tags**: the seven Finder colors in the sidebar list every file in your home folder with that tag (via Spotlight); right-click > Tags adds or removes a color tag on the selection.
+
+### Fixed
+- The list's Name column now shrinks when the window or pane gets narrower (e.g. opening the preview), so Date, Size and Kind stay visible.
+
 ## [0.7.0] - 2026-11-12
 
 Milestone M7: rename many items at once.

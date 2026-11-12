@@ -144,6 +144,9 @@ Pinax opens on a browser window. The sidebar has your Favorites (drag to reorder
 - **Views.** Cmd+1 list (click a column header to sort), Cmd+2 icons with thumbnails; Cmd+- / Cmd+= change the icon size. Folder sizes fill in in the background.
 - **Moving around.** Double-click or Cmd+Down opens, Cmd+Up goes to the enclosing folder, Cmd+[ / Cmd+] go back and forward. Click any part of the path bar to jump there.
 - **Go to Path** (Cmd+L): type a path (`~` works), Tab completes (press Tab again to cycle through matches, Shift+Tab backwards), Return goes, Esc cancels. A path to a file opens its folder with the file selected.
+- **Preview pane** (Shift+Cmd+P): shows the selected file with a live preview and its details, a folder with its contents two levels deep, or the total of several items.
+- **Cut** (Cmd+X) then Cmd+V moves files inside Pinax; cut items are dimmed until you paste. Pasting in Finder copies instead (Finder has no cut for files).
+- **Cloud and Tags** in the sidebar: Google Drive, Dropbox, OneDrive and Box appear when installed. Click a color tag to see every tagged file in your home folder; right-click > Tags to tag the selection (tags are not in History, click again to remove).
 - **Batch rename**: select several items and press Return (or right-click > Rename N Items…). Pick Replace Text, Add Text, Format (name + number) or Change Case, check the preview (problems show in red), then Rename. Extensions are kept unless you include them. Cmd+Z puts every name back.
 - **Search** (Cmd+F): type in the toolbar field. **This Folder** filters the list as you type; **Subfolders** searches every level below (results show a **Where** column). Case and accents are ignored and every word must appear in the name. Subfolder search uses Spotlight on the startup disk (folders excluded from Spotlight in System Settings are not found) and a direct walk on other disks; at most 5,000 results. New Folder, Paste and Duplicate are off while searching subfolders. Esc or going to another folder ends the search.
 - **Quick Look**: Space on the selection.
@@ -209,6 +212,8 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 | Cmd+Z | Undo the latest batch (while typing a name or path it undoes the typing instead) |
 | Cmd+1 / Cmd+2 | List / icon view |
 | Cmd+F | Search (This Folder / Subfolders) |
+| Shift+Cmd+P | Show / hide the preview pane |
+| Cmd+X | Cut (Cmd+V then moves) |
 | Cmd+L | Go to Path (Tab completes) |
 | Cmd+[ / Cmd+] / Cmd+Up | Back / Forward / Enclosing Folder |
 | Space | Quick Look |
@@ -262,7 +267,9 @@ Tiếng Việt: Pinax không thể thành trình duyệt thư mục mặc địn
 
 **Hai khung và Workspace.** Cmd+\\ bật hai khung; Tab đổi khung; F5 chép, F6 chuyển sang khung kia. File > Save Window as Workspace (Ctrl+Cmd+S) lưu các tab của cửa sổ, mở lại từ sidebar hoặc `pinax://workspace?name=…`.
 
-**Gỡ ứng dụng.** Sidebar > Pinax > Gỡ ứng dụng: chọn app (hoặc thả file .app vào) để thấy app cùng các file nó để lại trong `~/Library`; mục khớp bundle id được tick, mục chỉ khớp theo tên thì không. App đang chạy sẽ được hỏi thoát trước. Tất cả vào Thùng rác, Cmd+Z trả lại. **Đổi tên hàng loạt.** Chọn nhiều mục rồi Return (hoặc chuột phải > Đổi tên N mục…): thay chữ, thêm chữ, định dạng tên + số, hoặc đổi hoa thường; xem trước từng tên, lỗi tô đỏ. Giữ đuôi file trừ khi chọn khác. Cmd+Z trả lại toàn bộ tên cũ.
+**Gỡ ứng dụng.** Sidebar > Pinax > Gỡ ứng dụng: chọn app (hoặc thả file .app vào) để thấy app cùng các file nó để lại trong `~/Library`; mục khớp bundle id được tick, mục chỉ khớp theo tên thì không. App đang chạy sẽ được hỏi thoát trước. Tất cả vào Thùng rác, Cmd+Z trả lại. **Xem trước, cắt, cloud, tag.** Shift+Cmd+P mở khung xem trước (file: xem trực tiếp + thông tin; thư mục: nội dung hai cấp). Cmd+X rồi Cmd+V để chuyển file trong Pinax (dán sang Finder thì Finder chép). Sidebar có Google Drive / Dropbox / OneDrive nếu đã cài, và 7 tag màu: bấm để xem mọi file mang tag đó, chuột phải > Tags để gắn hoặc gỡ.
+
+**Đổi tên hàng loạt.** Chọn nhiều mục rồi Return (hoặc chuột phải > Đổi tên N mục…): thay chữ, thêm chữ, định dạng tên + số, hoặc đổi hoa thường; xem trước từng tên, lỗi tô đỏ. Giữ đuôi file trừ khi chọn khác. Cmd+Z trả lại toàn bộ tên cũ.
 
 **Tìm kiếm.** Cmd+F: "Thư mục này" lọc ngay khi gõ, "Thư mục con" tìm ở mọi cấp bên dưới (có cột Vị trí). Không phân biệt hoa thường và dấu ("tai lieu" ra "Tài liệu"), nhiều từ thì tên phải có đủ. Ổ máy dùng Spotlight, ổ ngoài Pinax tự duyệt; tối đa 5.000 kết quả.
 

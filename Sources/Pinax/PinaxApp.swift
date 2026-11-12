@@ -174,6 +174,11 @@ struct PinaxCommands: Commands {
             .disabled(browser == nil || browser?.pinax != nil)
         }
         CommandGroup(after: .toolbar) {
+            Button(env.prefs.showPreview ? L("Hide Preview", "Ẩn xem trước") : L("Show Preview", "Hiện xem trước")) {
+                env.prefs.showPreview.toggle()
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(browser == nil || browser?.pinax != nil)
             Toggle(L("Dual Pane", "Hai khung"), isOn: Binding(
                 get: { browserWindow?.isDual ?? false }, set: { _ in browserWindow?.toggleDual() }))
                 .keyboardShortcut("\\", modifiers: .command)
