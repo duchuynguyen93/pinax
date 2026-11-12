@@ -11,3 +11,4 @@ One file per milestone. Write the plan here before coding. Plans are written in 
 | [M4: App uninstaller](M4-app-uninstaller.md) | Done (0.4.0) | Uninstall apps with their ~/Library files, cautious App leftovers rule, Quick Look in lists |
 | [M5: Space Map](M5-space-map.md) | Done (0.5.0) | fts-based disk usage tree, drill down, move to Trash, Analyze Size from the browser |
 | [M6: Search](M6-search.md) | Done (0.6.0) | Cmd+F: filter this folder or search subfolders (Spotlight on the startup disk, fts elsewhere), accent-insensitive |
+| [M7: Batch rename](M7-batch-rename.md) | Done (0.7.0) | Replace / add / format / case with preview, swap-safe two-step moves, one History entry |

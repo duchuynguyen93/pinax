@@ -4,7 +4,7 @@
 
 Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk clutter and tidies your Downloads folder. It never deletes anything: every removal is a move to the Trash, and every batch can be undone from the built-in history. Later milestones will grow it into a Finder companion with its own file browser.
 
-> Version 0.6.0 (M6). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
+> Version 0.7.0 (M7). Apple Silicon only, macOS 26 or later. Ad-hoc signed, see [Install](#install).
 
 ## Features
 
@@ -17,6 +17,7 @@ Pinax is a free, open-source, native SwiftUI utility for macOS that finds disk c
 - **Tidy Downloads**: previews, then sorts loose files into `Images`, `Videos`, `Audio`, `Documents`, `Archives`, `Installers`, `Code` and `Other` folders. Skips hidden files, folders, aliases and half-finished downloads.
 - **History and Undo**: every batch is journaled; undo the latest with Cmd+Z or any batch from the History screen, with a per-item result.
 - **Uninstall Apps**: removes an app together with the caches, preferences and support files it left in `~/Library`, and Smart Clean finds leftovers of apps you already deleted. All undoable.
+- **Batch rename**: replace, add text, name + number, or change case for many items, with a live preview; one Cmd+Z undoes it.
 - **Search**: Cmd+F filters the current folder or searches all subfolders (Spotlight on the startup disk), ignoring case and accents.
 - **Space Map**: scans your home (or any folder) and shows what takes the most space, level by level; move items to the Trash from there, undoable.
 - **Storage bar**: startup disk usage split into Apps, Trash, Selected, Other and Free.
@@ -67,6 +68,7 @@ The version lives in the [`VERSION`](VERSION) file.
 | M4 | Uninstall apps with their `~/Library` files, App leftovers rule, Quick Look in lists (Empty Trash dropped on purpose) | Done (0.4.0) |
 | M5 | Space Map: what takes up space, drill down, move to Trash; Analyze Size from the browser | Done (0.5.0) |
 | M6 | Search: filter this folder or find in subfolders (Spotlight / fts), accent-insensitive | Done (0.6.0) |
+| M7 | Batch rename (replace, add, format, case) with preview and one-step undo | Done (0.7.0) |
 
 ## Documentation
 
@@ -91,6 +93,7 @@ Pinax là tiện ích macOS miễn phí, mã nguồn mở, viết bằng SwiftUI
 - **Sắp xếp Downloads**: xem trước rồi xếp file lẻ vào thư mục theo loại.
 - **Lịch sử và Hoàn tác**: Cmd+Z hoặc từ màn Lịch sử; lịch sử còn nguyên sau khi mở lại app.
 - **An toàn**: chỉ chuyển vào Thùng rác, kiểm tra lại từng mục ngay trước khi làm, có danh sách đường dẫn cấm, không gửi gì ra ngoài máy.
+- **Đổi tên hàng loạt**: thay chữ, thêm chữ, tên + số thứ tự, đổi hoa thường cho nhiều mục, xem trước từng tên, một Cmd+Z là trả lại.
 - **Tìm kiếm**: Cmd+F lọc thư mục đang xem hoặc tìm trong mọi thư mục con, không phân biệt hoa thường và dấu.
 - **Bản đồ dung lượng**: quét Home hoặc thư mục bất kỳ, xem cái gì nặng nhất theo từng cấp, chuyển vào Thùng rác ngay tại đó (hoàn tác được).
 - **Cài đặt**: tải DMG ở [Releases](https://github.com/duchuynguyen93/pinax/releases), kéo vào Applications. App ký ad-hoc nên lần đầu bị Gatekeeper chặn: vào **Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Vẫn mở**, hoặc chạy `xattr -dr com.apple.quarantine /Applications/Pinax.app`. Chỉ hỗ trợ Mac Apple Silicon, macOS 26 trở lên.

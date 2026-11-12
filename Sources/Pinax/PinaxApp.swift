@@ -87,8 +87,13 @@ struct PinaxCommands: Commands {
             Button(L("New Folder", "Thư mục mới")) { browser?.newFolder() }
                 .keyboardShortcut("n", modifiers: [.shift, .command])
                 .disabled(browser?.canCreateFolderHere != true)
-            Button(L("Rename", "Đổi tên")) { browser?.beginRenameSelection() }
-                .disabled(browser?.canRenameSelection != true)
+            if let n = browser?.selection.count, n >= 2 {
+                Button(batchRenameTitle(n)) { browser?.beginBatchRename() }
+                    .disabled(browser?.canBatchRename != true)
+            } else {
+                Button(L("Rename", "Đổi tên")) { browser?.beginRenameSelection() }
+                    .disabled(browser?.canRenameSelection != true)
+            }
             Button(L("Duplicate", "Nhân bản")) {
                 if NSApp.currentEvent?.type == .keyDown, TextEditing.isEditing { return }
                 browser?.duplicateSelection()

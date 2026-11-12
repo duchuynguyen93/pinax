@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning follo
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-12
+
+Milestone M7: rename many items at once.
+
+### Added
+- **Batch rename**: select two or more items and press Return, or right-click > "Rename N Items…" (also in the File menu). Four modes: **Replace Text** (optionally case-sensitive), **Add Text** before or after the name, **Format** (a name plus a number: start, digits, position, separator) and **Change Case** (lower, UPPER, Title). The extension is kept unless you include it. A live preview shows every new name and flags invalid names, duplicates inside the batch and names that already exist; Rename stays off until there are no problems.
+- Swaps and chains (a → b while b → c) work: Pinax moves the items through hidden temporary names first. The whole batch is one History entry and Cmd+Z restores every original name.
+
 ## [0.6.0] - 2026-11-06
 
 Milestone M6: search in the browser.

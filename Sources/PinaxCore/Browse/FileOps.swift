@@ -42,6 +42,11 @@ public struct FileOps {
         return executor.perform(moves: [(from: url, to: dest)], createDirs: [], title: title, home: home)
     }
 
+    /// Đổi tên cả lượt thành một batch journal (⌘Z trả lại hết, kể cả bước tạm).
+    public func batchRename(_ entries: [RenameEntry], title: String) -> PerformResult {
+        executor.perform(moves: BatchRename.moves(entries), createDirs: [], title: title, home: home)
+    }
+
     // MARK: New folder
 
     /// `untitled folder`, `untitled folder 2`, … (so tên không phân biệt hoa/thường).

@@ -20,9 +20,15 @@ enum BrowserKeys {
             model.openSelection()
             return true
         }
-        if flags.isEmpty, event.keyCode == 36 || event.keyCode == 76, model.canRenameSelection {
-            model.beginRenameSelection()
-            return true
+        if flags.isEmpty, event.keyCode == 36 || event.keyCode == 76 {
+            if model.canRenameSelection {
+                model.beginRenameSelection()
+                return true
+            }
+            if model.canBatchRename {
+                model.beginBatchRename()
+                return true
+            }
         }
         return false
     }

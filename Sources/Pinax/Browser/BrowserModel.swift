@@ -57,6 +57,10 @@ final class BrowserModel {
     private(set) var revealToken = 0
     /// Đường dẫn các mục đang chọn.
     var selection: Set<String> = []
+    /// Khác nil → đang hiện sheet đổi tên hàng loạt cho các URL này (theo thứ tự hiển thị).
+    var batchRenameItems: [URL]?
+    /// QA: mở sheet ở kiểu Format với base "Photo".
+    var batchRenameQAPreset: String?
     private(set) var error: BrowseError?
     private(set) var isLoading = false
     private(set) var availableBytes: Int64?

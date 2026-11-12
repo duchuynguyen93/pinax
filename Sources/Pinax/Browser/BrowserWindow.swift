@@ -85,6 +85,7 @@ struct BrowserRoot: View {
                     env.spaceMap.scan(URL(fileURLWithPath: dir, isDirectory: true))
                 }
                 await runQASearch()
+                await runQABatchRename()
                 await runQATransfer()
             }
             .onChange(of: win.primary.folder) { remember(win.primary) }
@@ -135,6 +136,25 @@ struct BrowserRoot: View {
         for _ in 0..<100 where win.primary.isLoading { try? await Task.sleep(for: .milliseconds(50)) }
         win.primary.searchScope = scope
         win.primary.searchText = query
+    }
+
+    /// PINAX_QA_BATCH_RENAME=1|format|replace|add|case (QA, chỉ cửa sổ đầu): sau khi nạp xong, chọn mọi mục và mở sheet ở kiểu đó với giá trị mẫu.
+    private func runQABatchRename() async {
+        guard Self.takeQABatchRename() else { return }
+        for _ in 0..<100 where win.primary.isLoading { try? await Task.sleep(for: .milliseconds(50)) }
+        let m = win.primary
+        m.selection = Set(m.items.map(\.url.path))
+        m.batchRenameQAPreset = Self.qaBatchRenameMode
+        m.beginBatchRename()
+    }
+
+    @MainActor private static var qaBatchRenameConsumed = false
+    @MainActor private static var qaBatchRenameMode = "format"
+    @MainActor private static func takeQABatchRename() -> Bool {
+        guard !qaBatchRenameConsumed, let v = ProcessInfo.processInfo.environment["PINAX_QA_BATCH_RENAME"], !v.isEmpty else { return false }
+        qaBatchRenameConsumed = true
+        qaBatchRenameMode = v == "1" ? "format" : v
+        return true
     }
 
     @MainActor private static var qaSearchConsumed = false
@@ -315,6 +335,14 @@ struct BrowserContent: View {
             StatusBar(model: model, dimmed: !isActive)
         }
         .quickLookPreview($model.quickLookURL, in: model.quickLookURLs)
+        .sheet(isPresented: Binding(get: { model.batchRenameItems != nil },
+                                    set: { if !$0 { model.batchRenameItems = nil; model.batchRenameQAPreset = nil } })) {
+            if let urls = model.batchRenameItems {
+                BatchRenameSheet(urls: urls, qaPreset: model.batchRenameQAPreset,
+                                 onApply: { model.applyBatchRename(entries: $0) },
+                                 onCancel: { model.batchRenameItems = nil; model.batchRenameQAPreset = nil })
+            }
+        }
         // Bấm bất kỳ đâu trong pane (kể cả path bar, status bar) → pane active; không chặn click của con.
         .simultaneousGesture(TapGesture().onEnded { model.onActivate?() }, including: dual ? .all : .subviews)
     }

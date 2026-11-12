@@ -7,6 +7,7 @@ func fmtBytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCount: n
 
 func abbreviate(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
 
+func batchRenameTitle(_ n: Int) -> String { L("Rename \(n) Items…", "Đổi tên \(n) mục…") }
 func itemsText(_ n: Int) -> String { n == 1 ? L("1 item", "1 mục") : L("\(n) items", "\(n) mục") }
 
 func ruleTitle(_ id: String) -> String {

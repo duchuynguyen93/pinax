@@ -15,6 +15,13 @@ extension BrowserModel {
         return fileOps.canModify(item.url)
     }
 
+    var canBatchRename: Bool {
+        guard pinax == nil, selection.count >= 2 else { return false }
+        let ops = fileOps
+        let sel = selectedItems
+        return sel.count >= 2 && sel.allSatisfy { ops.canModify($0.url) }
+    }
+
     var canTrashSelection: Bool {
         guard pinax == nil, !selection.isEmpty else { return false }
         let ops = fileOps
@@ -43,6 +50,43 @@ extension BrowserModel {
     func beginRenameSelection() {
         guard canRenameSelection, let item = selectedItems.first else { return }
         requestRename(item.url.path)
+    }
+
+    /// Return / menu khi chọn ≥ 2 mục: mở sheet đổi tên hàng loạt (thứ tự = thứ tự đang hiển thị).
+    func beginBatchRename() {
+        guard canBatchRename else { return }
+        batchRenameItems = selectedItems.map(\.url)
+    }
+
+    /// Sheet bấm Rename: chạy ngoài main, xong báo toast có Undo và chọn các tên mới.
+    func applyBatchRename(entries: [RenameEntry]) {
+        batchRenameItems = nil
+        let store = history.store, home = home
+        let n = entries.filter { $0.issue == nil }.count
+        let title = L("Rename \(n) items", "Đổi tên \(n) mục")
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                FileOps(executor: Executor(store: store), home: home).batchRename(entries, title: title)
+            }.value
+            finishBatchRename(result, entries: entries)
+        }
+    }
+
+    private func finishBatchRename(_ result: PerformResult, entries: [RenameEntry]) {
+        history.reload()
+        // Đổi chéo đi hai bước qua tên tạm: chỉ đếm bước cuối (nguồn là tên tạm), không đếm gấp đôi.
+        let finished = result.outcomes.filter { $0.status == .done }
+        let viaTemp = finished.filter { $0.url.lastPathComponent.hasPrefix(".pinax-rename-") }
+        let twoStep = result.outcomes.contains { $0.url.lastPathComponent.hasPrefix(".pinax-rename-") }
+        let done = twoStep ? viaTemp.count : finished.count
+        let problems = result.outcomes.compactMap(Problem.from)
+        var message = done > 0 ? L("Renamed \(done) items", "Đã đổi tên \(done) mục") : L("Nothing was renamed", "Chưa đổi được tên mục nào")
+        if !problems.isEmpty && done > 0 {
+            message += L(" · \(problems.count) skipped or failed", " · \(problems.count) mục bị bỏ qua hoặc lỗi")
+        }
+        toast.show(message, undoBatch: result.batch, problems: problems)
+        reloadAfterOperation(select: Set(entries.filter { $0.issue == nil }.map(\.target.path)))
+        noteJournalError(result)
     }
 
     /// View gọi khi người dùng chốt tên mới. true = đã đổi (hoặc không đổi gì); false = lỗi, view phải trả tên cũ.
@@ -92,7 +136,11 @@ extension BrowserModel {
 
     private func finishTrash(_ result: PerformResult) {
         history.reload()
-        let done = result.outcomes.filter { $0.status == .done }.count
+        // Đổi chéo đi hai bước qua tên tạm: chỉ đếm bước cuối (nguồn là tên tạm), không đếm gấp đôi.
+        let finished = result.outcomes.filter { $0.status == .done }
+        let viaTemp = finished.filter { $0.url.lastPathComponent.hasPrefix(".pinax-rename-") }
+        let twoStep = result.outcomes.contains { $0.url.lastPathComponent.hasPrefix(".pinax-rename-") }
+        let done = twoStep ? viaTemp.count : finished.count
         let problems = result.outcomes.compactMap(Problem.from)
         var message: String
         if done > 0 {

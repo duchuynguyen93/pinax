@@ -35,7 +35,11 @@ enum BrowserMenu {
                 if model.quickLookURL == nil { model.toggleQuickLook() }
             })
             menu.addItem(.separator())
-            menu.addItem(ActionMenuItem(L("Rename", "Đổi tên"), enabled: model.canRenameSelection) { model.beginRenameSelection() })
+            if items.count >= 2 {
+                menu.addItem(ActionMenuItem(batchRenameTitle(items.count), enabled: model.canBatchRename) { model.beginBatchRename() })
+            } else {
+                menu.addItem(ActionMenuItem(L("Rename", "Đổi tên"), enabled: model.canRenameSelection) { model.beginRenameSelection() })
+            }
         }
         menu.addItem(ActionMenuItem(L("New Folder", "Thư mục mới"), key: "n", mask: [.command, .shift],
                                     enabled: model.canCreateFolderHere) { model.newFolder() })
